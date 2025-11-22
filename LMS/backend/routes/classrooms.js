@@ -1,0 +1,526 @@
+const express = require('express');
+const Classroom = require('../models/Classroom');
+const User = require('../models/User');
+const School = require('../models/School');
+const Notification = require('../models/Notification'); // New import
+const { auth, authorize } = require('../middleware/auth');
+const subscriptionCheck = require('../middleware/subscriptionCheck'); // Import subscriptionCheck middleware
+const router = express.Router();
+
+// Get all classrooms
+router.get('/', auth, subscriptionCheck, async (req, res) => {
+  try {
+    let query = {};
+
+    // Students see only published classes (enrolled or available for enrollment)
+    if (req.user.role === 'student') {
+      query = {
+        published: true,
+        $or: [
+          { students: req.user._id }, // Already enrolled
+          { students: { $ne: req.user._id } } // Available to enroll
+        ]
+      };
+    }
+    // Teachers see their own classes
+    else if (req.user.role === 'teacher' || req.user.role === 'personal_teacher') {
+      query = { teacherId: req.user._id };
+    }
+    // School Admin sees classes from their school
+    else if (req.user.role === 'school_admin' && req.user.schoolId) {
+      query = { schoolId: req.user.schoolId };
+    }
+
+    const classrooms = await Classroom.find(query)
+      .populate('teacherId', 'name email')
+      .populate('students', 'name email')
+      .populate('topics', 'name description')
+      .sort({ createdAt: -1 });
+
+    res.json({ classrooms });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get classroom by ID
+router.get('/:id', auth, subscriptionCheck, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id)
+      .populate('teacherId', 'name email role')
+      .populate('students', 'name email')
+      .populate('topics', 'name description materials')
+      .populate({
+        path: 'assignments',
+        populate: [
+          { path: 'topicId', select: 'name' }, // Populate topic details
+          {
+            path: 'submissions.studentId', // Populate student details within submissions
+            select: 'name email'
+          }
+        ]
+      })
+      .populate({
+        path: 'schoolId',
+        select: 'name adminId',
+        populate: {
+          path: 'adminId',
+          select: 'name email'
+        }
+      });
+
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    // Teachers can see their own classrooms even if unpublished
+    // Students can only see published classrooms
+    if (req.user.role === 'student' && !classroom.published) {
+      return res.status(403).json({ message: 'Classroom not available' });
+    }
+
+    res.json({ classroom });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Create classroom
+router.post('/', auth, authorize('root_admin', 'school_admin', 'teacher', 'personal_teacher'), subscriptionCheck, async (req, res) => {
+  try {
+    const {
+      name,
+      description,
+      schedule,
+      capacity,
+      pricing,
+      isPaid,
+      teacherId,
+      schoolId,
+      published
+    } = req.body;
+
+    // Validate schedule array
+    if (!Array.isArray(schedule)) {
+      return res.status(400).json({ message: 'Schedule must be an array' });
+    }
+
+    for (const session of schedule) {
+      if (!session.dayOfWeek || !session.startTime || !session.endTime) {
+        return res.status(400).json({ message: 'Each schedule session must have dayOfWeek, startTime, and endTime' });
+      }
+      const validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      if (!validDays.includes(session.dayOfWeek)) {
+        return res.status(400).json({ message: `Invalid dayOfWeek: ${session.dayOfWeek}` });
+      }
+    }
+
+    // Determine teacher ID
+    let finalTeacherId = teacherId;
+    if (req.user.role === 'teacher' || req.user.role === 'personal_teacher') {
+      // Teachers can only create classes for themselves
+      finalTeacherId = req.user._id;
+    } else if (req.user.role === 'root_admin' || req.user.role === 'school_admin') {
+      // Root admin and school admin can assign teachers
+      if (!teacherId) {
+        return res.status(400).json({ message: 'teacherId is required for admin users' });
+      }
+      // Verify teacher exists and belongs to school (if school admin)
+      const teacher = await User.findById(teacherId);
+      if (!teacher || !['teacher', 'personal_teacher'].includes(teacher.role)) {
+        return res.status(400).json({ message: 'Invalid teacher ID' });
+      }
+      if (req.user.role === 'school_admin' && teacher.schoolId?.toString() !== req.user.schoolId?.toString()) {
+        return res.status(403).json({ message: 'Teacher must belong to your school' });
+      }
+      finalTeacherId = teacherId;
+    }
+
+    // Determine school ID
+    let finalSchoolId = null; // Default to null
+    if (req.user.role === 'school_admin') {
+      finalSchoolId = req.user.schoolId;
+    } else if (req.user.role === 'teacher') {
+      // If a regular teacher creates a class, it should be associated with their school
+      finalSchoolId = req.user.schoolId;
+    } else if (req.user.role === 'personal_teacher') {
+      finalSchoolId = null;
+    } else if (req.user.role === 'root_admin') {
+      if (teacherId) {
+        // If root admin is assigning a teacher, get the schoolId from the assigned teacher
+        const assignedTeacher = await User.findById(teacherId);
+        if (assignedTeacher && assignedTeacher.role === 'teacher') {
+          finalSchoolId = assignedTeacher.schoolId;
+        } else if (assignedTeacher && assignedTeacher.role === 'personal_teacher') {
+          finalSchoolId = null;
+        } else if (schoolId) { // If teacherId is provided but not a regular/personal teacher, or no schoolId on teacher
+          finalSchoolId = schoolId;
+        }
+      } else if (schoolId) {
+        // If no teacherId, but schoolId is provided in body by root_admin
+        finalSchoolId = schoolId;
+      }
+    }
+
+    const classroom = new Classroom({
+      name,
+      description,
+      schedule,
+      capacity,
+      pricing: pricing || { type: 'per_class', amount: 0 },
+      isPaid: isPaid || false,
+      teacherId: finalTeacherId,
+      schoolId: finalSchoolId,
+      published: published !== undefined ? published : false
+    });
+
+    await classroom.save();
+    await classroom.populate('teacherId', 'name email');
+
+    // Notify School Admin if a class is created in their school
+    if (classroom.schoolId) {
+      try {
+        const school = await School.findById(classroom.schoolId);
+        if (school && school.adminId) {
+          await Notification.create({
+            userId: school.adminId,
+            message: `A new class "${classroom.name}" has been created by ${req.user.name} in your school and is awaiting review.`,
+            type: 'new_class_created',
+            entityId: classroom._id,
+            entityRef: 'Classroom',
+          });
+        }
+      } catch (notificationError) {
+        console.error('Error creating in-app notification for school admin on class creation:', notificationError.message);
+      }
+    }
+
+    res.status(201).json({ classroom });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update classroom
+router.put('/:id', auth, subscriptionCheck, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    // Check permissions
+    // Unpublished classes can be edited by teacher, personal teacher, school admin, and root admin
+    // Published classes can only be edited by their teacher or admins
+    const canEdit =
+      req.user.role === 'root_admin' ||
+      req.user.role === 'school_admin' ||
+      (req.user.role === 'teacher' && classroom.teacherId.toString() === req.user._id.toString()) ||
+      (req.user.role === 'personal_teacher' && classroom.teacherId.toString() === req.user._id.toString()) ||
+      (!classroom.published && ['root_admin', 'school_admin', 'teacher', 'personal_teacher'].includes(req.user.role));
+
+    if (!canEdit) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const { name, description, schedule, capacity, pricing, isPaid, teacherId, schoolId, published } = req.body;
+
+    if (name) classroom.name = name;
+    if (description) classroom.description = description;
+    if (capacity) classroom.capacity = capacity;
+    if (pricing) classroom.pricing = pricing;
+    if (isPaid !== undefined) classroom.isPaid = isPaid;
+    if (teacherId) classroom.teacherId = teacherId; // Further authorization/validation might be needed here
+    if (schoolId) classroom.schoolId = schoolId; // Further authorization/validation might be needed here
+    if (published !== undefined) classroom.published = published;
+
+    // Handle schedule update with validation
+    if (schedule) {
+      if (!Array.isArray(schedule)) {
+        return res.status(400).json({ message: 'Schedule must be an array' });
+      }
+      for (const session of schedule) {
+        if (!session.dayOfWeek || !session.startTime || !session.endTime) {
+          return res.status(400).json({ message: 'Each schedule session must have dayOfWeek, startTime, and endTime' });
+        }
+        const validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        if (!validDays.includes(session.dayOfWeek)) {
+          return res.status(400).json({ message: `Invalid dayOfWeek: ${session.dayOfWeek}` });
+        }
+      }
+      classroom.schedule = schedule;
+    }
+
+
+
+
+
+
+
+    Object.assign(classroom, req.body);
+    classroom.updatedAt = Date.now();
+    await classroom.save();
+
+    await classroom.populate('teacherId', 'name email');
+    res.json({ classroom });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Delete classroom
+router.delete('/:id', auth, subscriptionCheck, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    // Check permissions
+    const canDelete =
+      req.user.role === 'root_admin' ||
+      (req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString()) ||
+      (req.user.role === 'teacher' && classroom.teacherId.toString() === req.user._id.toString()) ||
+      (req.user.role === 'personal_teacher' && classroom.teacherId.toString() === req.user._id.toString());
+
+    if (!canDelete) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    await Classroom.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Classroom deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Publish/Unpublish classroom
+router.put('/:id/publish', auth, authorize('root_admin', 'school_admin', 'personal_teacher'), subscriptionCheck, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    // Check permissions
+    const canPublish =
+      req.user.role === 'root_admin' ||
+      (req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString()) ||
+      (req.user.role === 'personal_teacher' && classroom.teacherId.toString() === req.user._id.toString());
+
+    if (!canPublish) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const { published } = req.body;
+    classroom.published = published !== undefined ? published : !classroom.published;
+    classroom.updatedAt = Date.now();
+    await classroom.save();
+
+    // Send notifications if the class is being published
+    if (published) {
+      try {
+        // Notify the teacher
+        await Notification.create({
+          userId: classroom.teacherId,
+          message: `Your class "${classroom.name}" has been published by the school admin!`,
+          type: 'class_published',
+          entityId: classroom._id,
+          entityRef: 'Classroom',
+        });
+
+        // Notify all enrolled students (if any)
+        if (classroom.students && classroom.students.length > 0) {
+          const studentNotifications = classroom.students.map(studentId => ({
+            userId: studentId,
+            message: `The class "${classroom.name}" you are enrolled in has been published!`,
+            type: 'class_published',
+            entityId: classroom._id,
+            entityRef: 'Classroom',
+          }));
+          await Notification.insertMany(studentNotifications);
+        }
+      } catch (notificationError) {
+        console.error('Error creating in-app notifications on class publishing:', notificationError.message);
+      }
+    }
+
+    res.json({
+      message: classroom.published ? 'Classroom published' : 'Classroom unpublished',
+      classroom
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Enroll student (after payment or free class)
+router.post('/:id/enroll', auth, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id);
+
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    // Only students can enroll themselves
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ message: 'Only students can enroll' });
+    }
+
+    // Check if classroom is published
+    if (!classroom.published) {
+      return res.status(400).json({ message: 'Classroom is not available for enrollment' });
+    }
+
+    // Check if already enrolled
+    if (classroom.students.includes(req.user._id)) {
+      return res.status(400).json({ message: 'Already enrolled' });
+    }
+
+    // Check capacity
+    if (classroom.students.length >= classroom.capacity) {
+      return res.status(400).json({ message: 'Classroom is full' });
+    }
+
+    // Enroll student
+    classroom.students.push(req.user._id);
+    await classroom.save();
+
+    // Update user's enrolled classes
+    await User.findByIdAndUpdate(req.user._id, {
+      $addToSet: { enrolledClasses: classroom._id }
+    });
+
+    res.json({ message: 'Enrolled successfully', classroom });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Add student to classroom (School Admin, Personal Teacher, Root Admin)
+router.post('/:id/students', auth, authorize('root_admin', 'school_admin', 'personal_teacher'), subscriptionCheck, async (req, res) => {
+  try {
+    const { studentId } = req.body;
+    const classroom = await Classroom.findById(req.params.id).populate('teacherId');
+
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    // Check permissions
+    const canManage =
+      req.user.role === 'root_admin' ||
+      (req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString()) ||
+      (req.user.role === 'personal_teacher' && classroom.teacherId._id.toString() === req.user._id.toString());
+
+    if (!canManage) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Verify student exists
+    const student = await User.findById(studentId);
+    if (!student || student.role !== 'student') {
+      return res.status(400).json({ message: 'Invalid student ID' });
+    }
+
+    // Check if already enrolled
+    if (classroom.students.includes(studentId)) {
+      return res.status(400).json({ message: 'Student already enrolled' });
+    }
+
+    // Check capacity
+    if (classroom.students.length >= classroom.capacity) {
+      return res.status(400).json({ message: 'Classroom is full' });
+    }
+
+    // Add student
+    classroom.students.push(studentId);
+    await classroom.save();
+
+    // Update user's enrolled classes
+    await User.findByIdAndUpdate(studentId, {
+      $addToSet: { enrolledClasses: classroom._id }
+    });
+
+    await classroom.populate('students', 'name email');
+    res.json({ message: 'Student added successfully', classroom });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Remove student from classroom
+router.delete('/:id/students/:studentId', auth, authorize('root_admin', 'school_admin', 'personal_teacher'), subscriptionCheck, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id).populate('teacherId');
+
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    // Check permissions
+    const canManage =
+      req.user.role === 'root_admin' ||
+      (req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString()) ||
+      (req.user.role === 'personal_teacher' && classroom.teacherId._id.toString() === req.user._id.toString());
+
+    if (!canManage) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Remove student
+    classroom.students = classroom.students.filter(
+      studentId => studentId.toString() !== req.params.studentId
+    );
+    await classroom.save();
+
+    // Update user's enrolled classes
+    await User.findByIdAndUpdate(req.params.studentId, {
+      $pull: { enrolledClasses: classroom._id }
+    });
+
+    await classroom.populate('students', 'name email');
+    res.json({ message: 'Student removed successfully', classroom });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update teacher (Root Admin only, for non-personal teacher classes)
+router.put('/:id/teacher', auth, authorize('root_admin'), subscriptionCheck, async (req, res) => {
+  try {
+    const { teacherId } = req.body;
+    const classroom = await Classroom.findById(req.params.id).populate('teacherId');
+
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    // Cannot change teacher for personal teacher classes
+    if (!classroom.schoolId && classroom.teacherId.role === 'personal_teacher') {
+      return res.status(403).json({ message: 'Cannot change teacher for personal teacher classes' });
+    }
+
+    // Verify new teacher exists
+    const newTeacher = await User.findById(teacherId);
+    if (!newTeacher || !['teacher', 'personal_teacher'].includes(newTeacher.role)) {
+      return res.status(400).json({ message: 'Invalid teacher ID' });
+    }
+
+    // Update teacher
+    classroom.teacherId = teacherId;
+    await classroom.save();
+
+    await classroom.populate('teacherId', 'name email');
+    res.json({ message: 'Teacher updated successfully', classroom });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+module.exports = router;
+

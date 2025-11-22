@@ -1,0 +1,21 @@
+{
+  "name": "lms-platform",
+  "version": "1.0.0",
+  "description": "Full-stack Learning Management System",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "seed": "cd backend && node seed.js",
+    "build:frontend": "cd frontend && npm run build"
+  },
+  "keywords": [
+    "lms",
+    "learning-management-system",
+    "education",
+    "full-stack"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+
