@@ -2,11 +2,19 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+// Log API URL on load for debugging
+console.log('API Configuration:', {
+  VITE_API_URL: import.meta.env.VITE_API_URL,
+  API_URL: API_URL,
+  Environment: import.meta.env.MODE
+});
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000, // 30 seconds timeout
 });
 
 // Add token to requests
@@ -19,10 +27,20 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle token expiration
+// Handle token expiration and connection errors
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Log connection errors for debugging
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      console.error('Request timeout - Backend may be slow or unavailable:', error.config?.url);
+      console.error('API URL being used:', API_URL);
+    } else if (error.code === 'ERR_NETWORK' || error.message.includes('Network Error')) {
+      console.error('Network error - Cannot reach backend:', error.config?.url);
+      console.error('API URL being used:', API_URL);
+      console.error('Check if backend is running and CORS is configured correctly');
+    }
+    
     if (error.response?.status === 401) {
       // Only redirect if not already on login page and not during token verification
       // Let AuthContext handle the logout/redirect logic to avoid conflicts

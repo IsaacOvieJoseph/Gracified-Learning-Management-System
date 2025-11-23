@@ -43,8 +43,14 @@ const RegisterPersonalTeacher = () => {
         navigate('/dashboard');
       }
     } catch (err) {
-      console.error('Registration error:', err.response?.data?.message || err.message);
-      setError(err.response?.data?.message || 'Registration failed');
+      console.error('Registration error:', err);
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        setError('Connection timeout. The server may be slow or unavailable. Please try again.');
+      } else if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
+        setError('Cannot connect to server. Please check your internet connection and ensure the backend is running.');
+      } else {
+        setError(err.response?.data?.message || err.message || 'Registration failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

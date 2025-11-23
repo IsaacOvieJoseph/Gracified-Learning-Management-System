@@ -50,8 +50,10 @@ router.post('/register', async (req, res) => {
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       if (!existingUser.isVerified) {
-        // If user exists but is not verified, resend OTP
-        await generateAndSendOTP(existingUser);
+        // If user exists but is not verified, resend OTP (send email in background)
+        generateAndSendOTP(existingUser).catch(err => {
+          console.error('Error sending OTP email:', err.message);
+        });
         return res.status(200).json({ message: 'User already registered but not verified. New OTP sent.', redirectToVerify: true, email });
       }
       return res.status(400).json({ message: 'User already exists and is verified' });
@@ -85,12 +87,18 @@ router.post('/register', async (req, res) => {
 
     await user.save(); // Save again to update schoolId, tutorialId, and subscription details
 
-    // Generate and send OTP
-    await generateAndSendOTP(user);
-
+    // Send response immediately, then send email in background
     res.status(201).json({ message: 'Registration successful. Please verify your email with the OTP sent to your email.', redirectToVerify: true, email });
+    
+    // Generate and send OTP asynchronously (don't block response)
+    generateAndSendOTP(user).catch(err => {
+      console.error('Error sending OTP email:', err.message);
+      // Email sending failed, but user is already registered
+      // In production, you might want to queue this for retry
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Registration error:', error);
+    res.status(500).json({ message: error.message || 'Registration failed. Please try again.' });
   }
 });
 
@@ -151,9 +159,12 @@ router.post('/resend-otp', async (req, res) => {
       return res.status(400).json({ message: 'Email already verified' });
     }
 
-    await generateAndSendOTP(user);
-
+    // Send response immediately, then send email in background
     res.json({ message: 'New OTP sent to your email' });
+    
+    generateAndSendOTP(user).catch(err => {
+      console.error('Error sending OTP email:', err.message);
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -175,8 +186,10 @@ router.post('/login', async (req, res) => {
     }
 
     if (!user.isVerified) {
-      // If user is not verified, send OTP and inform frontend
-      await generateAndSendOTP(user);
+      // If user is not verified, send OTP and inform frontend (send email in background)
+      generateAndSendOTP(user).catch(err => {
+        console.error('Error sending OTP email:', err.message);
+      });
       return res.status(403).json({ message: 'Email not verified. An OTP has been sent to your email.', redirectToVerify: true, email });
     }
 
