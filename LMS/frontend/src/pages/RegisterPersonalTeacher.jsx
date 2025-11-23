@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
 const RegisterPersonalTeacher = () => {
@@ -34,7 +34,7 @@ const RegisterPersonalTeacher = () => {
     }
 
     try {
-      const response = await axios.post('/api/auth/register', { ...formData, role: 'personal_teacher' });
+      const response = await api.post('/auth/register', { ...formData, role: 'personal_teacher' });
       setMessage(response.data.message);
       if (response.data.redirectToVerify) {
         navigate('/verify-email', { state: { email: formData.email } });
