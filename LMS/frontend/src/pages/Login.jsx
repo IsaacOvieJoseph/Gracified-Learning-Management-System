@@ -96,15 +96,6 @@ const Login = () => {
         <p className="mt-4 text-center text-gray-600">
           Don't have an account? <Link to="/register" className="text-blue-600 hover:underline">Sign Up</Link>
         </p>
-
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg text-sm">
-          <p className="font-semibold mb-2">Demo Accounts:</p>
-          <p className="text-gray-600">Root Admin: admin@lms.com / admin123</p>
-          <p className="text-gray-600">School Admin: schooladmin@lms.com / admin123</p>
-          <p className="text-gray-600">Teacher: teacher@lms.com / teacher123</p>
-          <p className="text-gray-600">Personal Teacher: personalteacher@lms.com / teacher123</p>
-          <p className="text-gray-600">Student: student@lms.com / student123</p>
-        </div>
       </div>
     </div>
   );
