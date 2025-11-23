@@ -12,7 +12,7 @@ const router = express.Router();
 // Email transporter configuration
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: process.env.SMTP_PORT || 587,
+  port: parseInt(process.env.SMTP_PORT) || 587,
   secure: false,
   auth: {
     user: process.env.SMTP_USER,
@@ -20,25 +20,57 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// Verify email configuration
+const isEmailConfigured = () => {
+  return !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+};
+
 // Helper function to generate and send OTP
 const generateAndSendOTP = async (user) => {
-  const otp = crypto.randomInt(100000, 999999).toString();
-  user.otp = otp;
-  user.otpExpires = Date.now() + 3600000; // OTP expires in 1 hour
-  await user.save();
+  try {
+    // Check if email is configured
+    if (!isEmailConfigured()) {
+      console.error('Email not configured: SMTP_USER or SMTP_PASS missing');
+      console.log(`OTP for ${user.email}: ${crypto.randomInt(100000, 999999).toString()}`);
+      return;
+    }
 
-  await transporter.sendMail({
-    from: process.env.SMTP_USER,
-    to: user.email,
-    subject: 'Email Verification OTP',
-    html: `
-      <h2>Email Verification</h2>
-      <p>Hello ${user.name},</p>
-      <p>Your OTP for email verification is: <strong>${otp}</strong></p>
-      <p>This OTP is valid for 1 hour.</p>
-      <p>If you did not request this, please ignore this email.</p>
-    `
-  });
+    const otp = crypto.randomInt(100000, 999999).toString();
+    user.otp = otp;
+    user.otpExpires = Date.now() + 3600000; // OTP expires in 1 hour
+    await user.save();
+
+    console.log(`Attempting to send OTP email to ${user.email}...`);
+    
+    const mailOptions = {
+      from: process.env.SMTP_USER,
+      to: user.email,
+      subject: 'Email Verification OTP',
+      html: `
+        <h2>Email Verification</h2>
+        <p>Hello ${user.name},</p>
+        <p>Your OTP for email verification is: <strong>${otp}</strong></p>
+        <p>This OTP is valid for 1 hour.</p>
+        <p>If you did not request this, please ignore this email.</p>
+      `
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`OTP email sent successfully to ${user.email}. Message ID: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    console.error('Error sending OTP email:', error.message);
+    console.error('Error details:', {
+      code: error.code,
+      command: error.command,
+      response: error.response,
+      responseCode: error.responseCode
+    });
+    
+    // Log OTP in console for development/debugging
+    console.log(`OTP for ${user.email} (email failed): ${user.otp || 'not generated'}`);
+    throw error; // Re-throw so caller can handle it
+  }
 };
 
 // Register
@@ -52,7 +84,7 @@ router.post('/register', async (req, res) => {
       if (!existingUser.isVerified) {
         // If user exists but is not verified, resend OTP (send email in background)
         generateAndSendOTP(existingUser).catch(err => {
-          console.error('Error sending OTP email:', err.message);
+          console.error('Error sending OTP email for existing user:', err.message);
         });
         return res.status(200).json({ message: 'User already registered but not verified. New OTP sent.', redirectToVerify: true, email });
       }
@@ -92,7 +124,8 @@ router.post('/register', async (req, res) => {
     
     // Generate and send OTP asynchronously (don't block response)
     generateAndSendOTP(user).catch(err => {
-      console.error('Error sending OTP email:', err.message);
+      console.error('Error sending OTP email after registration:', err.message);
+      console.error('User registered but email failed. OTP is saved in database.');
       // Email sending failed, but user is already registered
       // In production, you might want to queue this for retry
     });
@@ -188,7 +221,7 @@ router.post('/login', async (req, res) => {
     if (!user.isVerified) {
       // If user is not verified, send OTP and inform frontend (send email in background)
       generateAndSendOTP(user).catch(err => {
-        console.error('Error sending OTP email:', err.message);
+        console.error('Error sending OTP email during login:', err.message);
       });
       return res.status(403).json({ message: 'Email not verified. An OTP has been sent to your email.', redirectToVerify: true, email });
     }
@@ -264,6 +297,55 @@ router.get('/me', auth, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+// Test email configuration endpoint (for debugging)
+router.post('/test-email', async (req, res) => {
+  try {
+    if (!isEmailConfigured()) {
+      return res.status(400).json({ 
+        message: 'Email not configured',
+        details: {
+          SMTP_HOST: process.env.SMTP_HOST || 'not set',
+          SMTP_PORT: process.env.SMTP_PORT || 'not set',
+          SMTP_USER: process.env.SMTP_USER ? 'set' : 'not set',
+          SMTP_PASS: process.env.SMTP_PASS ? 'set' : 'not set'
+        }
+      });
+    }
+
+    const testEmail = req.body.email || process.env.SMTP_USER;
+    
+    console.log(`Testing email configuration - sending test email to ${testEmail}...`);
+    
+    const info = await transporter.sendMail({
+      from: process.env.SMTP_USER,
+      to: testEmail,
+      subject: 'Test Email from LMS',
+      html: `
+        <h2>Test Email</h2>
+        <p>This is a test email from your LMS backend.</p>
+        <p>If you received this, your email configuration is working correctly!</p>
+      `
+    });
+
+    res.json({ 
+      message: 'Test email sent successfully',
+      messageId: info.messageId,
+      to: testEmail
+    });
+  } catch (error) {
+    console.error('Test email error:', error);
+    res.status(500).json({ 
+      message: 'Failed to send test email',
+      error: error.message,
+      details: {
+        code: error.code,
+        command: error.command,
+        response: error.response
+      }
+    });
   }
 });
 
