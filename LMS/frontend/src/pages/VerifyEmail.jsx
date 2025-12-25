@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import api from '../utils/api'; // Use our configured API instance
 import { useAuth } from '../context/AuthContext';
@@ -8,16 +8,31 @@ const VerifyEmail = () => {
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState(false);
+  // Removed problematic user dependency and effect, since user is not defined
+// Add effect back only if you plan to implement fetchVerificationStatus and properly access user from context.
+// useEffect(() => {
+//   // fetchVerificationStatus();
+//   // Listen for school selection changes
+//   // const handler = () => fetchVerificationStatus();
+//   // window.addEventListener('schoolSelectionChanged', handler);
+//   // return () => window.removeEventListener('schoolSelectionChanged', handler);
+// }, []);
+
   const navigate = useNavigate();
   const location = useLocation();
   const { login, setAuthData } = useAuth();
 
-  const email = location.state?.email;
+  const passedEmail = location.state?.email;
+const [email, setEmail] = useState(passedEmail || sessionStorage.getItem('verifyEmail'));
 
-  if (!email) {
-    navigate('/login'); // Redirect to login if no email is found in state
-    return null;
-  }
+  useEffect(() => {
+    if (passedEmail) sessionStorage.setItem('verifyEmail', passedEmail);
+    if (!passedEmail && !email) {
+      navigate('/login');
+    }
+  }, [passedEmail, email, navigate]);
+
+  if (!email) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,14 +43,23 @@ const VerifyEmail = () => {
     try {
       const response = await api.post('/auth/verify-otp', { email, otp });
       console.log('VerifyEmail: API Response on OTP verification:', response.data);
-
+      // Debug: Log all relevant response fields
+      console.log('VerifyEmail: token:', response.data.token);
+      console.log('VerifyEmail: user:', response.data.user);
+      console.log('VerifyEmail: user.isVerified:', response.data.user?.isVerified);
+      console.log('VerifyEmail: message:', response.data.message);
       if (response.data.token && response.data.user) {
-        console.log('VerifyEmail: Token and user present in response. Proceeding with setAuthData.');
+        console.log('VerifyEmail: Logging in and navigating to dashboard (token and user present)');
         setAuthData(response.data.token, response.data.user, response.data.trialExpired);
         setMessage(response.data.message || 'Email verified successfully!');
         navigate('/dashboard');
+      } else if (response.data.user && response.data.user.isVerified) {
+        console.log('VerifyEmail: Logging in and navigating to dashboard (user already verified)');
+        setAuthData(response.data.token, response.data.user, response.data.trialExpired);
+        setMessage('Email already verified. Logging you in...');
+        navigate('/dashboard');
       } else {
-        console.log('VerifyEmail: Response missing token or user. Setting error.', { tokenPresent: !!response.data.token, userPresent: !!response.data.user });
+        console.log('VerifyEmail: OTP verification failed or incomplete data.');
         setError(response.data.message || 'OTP verification failed: Incomplete data from server.');
       }
     } catch (err) {
