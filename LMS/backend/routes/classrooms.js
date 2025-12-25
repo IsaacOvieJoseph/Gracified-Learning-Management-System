@@ -112,9 +112,10 @@ router.get('/:id', auth, subscriptionCheck, async (req, res) => {
       ) || req.user.enrolledClasses.some(
         classId => classId.toString() === classroom._id.toString()
       );
-      if (!isEnrolled) {
-        return res.status(403).json({ message: 'You are not enrolled in this class.', enrollmentRequired: true });
-      }
+    //comment out
+    //  if (!isEnrolled) {
+    //    return res.status(403).json({ message: 'You are not enrolled in this class.', enrollmentRequired: true });
+    //  }
     }
 
     // Teachers can see their own classrooms even if unpublished
