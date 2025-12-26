@@ -94,14 +94,39 @@ const Users = () => {
     try {
       const submitData = { ...formData };
       if (user?.role === 'school_admin') {
+        let schoolIdToSend = null;
+        
         // If 'All' is selected, assign all school IDs
-        if (submitData.schoolIds && submitData.schoolIds.includes('ALL')) {
-          submitData.schoolIds = schools.map(s => s._id);
+        if (submitData.schoolIds && submitData.schoolIds.length > 0) {
+          // Check if all schools are selected (equivalent to 'ALL')
+          const allSelected = submitData.schoolIds.length === schools.length && 
+            schools.every(s => submitData.schoolIds.includes(s._id));
+          
+          if (allSelected || submitData.schoolIds.includes('ALL')) {
+            // Send all school IDs as an array
+            schoolIdToSend = schools.map(s => s._id);
+          } else {
+            // Send selected school IDs as array (backend handles arrays)
+            schoolIdToSend = submitData.schoolIds.filter(id => id !== 'ALL');
+          }
+        } else if (!submitData.schoolIds || submitData.schoolIds.length === 0) {
+          // If no school selected in form, use the selected school from dropdown
+          if (selectedSchools.length > 0) {
+            schoolIdToSend = selectedSchools;
+          } else {
+            alert('Please select a school from the header dropdown first');
+            return;
+          }
         }
+        
+        // Send as schoolId (singular) to match backend expectation
+        submitData.schoolId = schoolIdToSend;
+        // Remove schoolIds from submitData to avoid confusion
+        delete submitData.schoolIds;
       }
       await api.post('/users', submitData);
       setShowCreateModal(false);
-      setFormData({ name: '', email: '', password: '', role: 'student' });
+      setFormData({ name: '', email: '', password: '', role: 'student', schoolIds: [] });
       fetchUsers();
     } catch (error) {
       alert(error.response?.data?.message || 'Error creating user');
@@ -148,7 +173,22 @@ const Users = () => {
           </h2>
           {['root_admin', 'school_admin'].includes(user?.role) && (
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => {
+                // Reset form and sync with selectedSchools when opening modal
+                const currentSelected = JSON.parse(localStorage.getItem('selectedSchools') || '[]');
+                if (user?.role === 'school_admin' && currentSelected.length > 0) {
+                  setFormData({ 
+                    name: '', 
+                    email: '', 
+                    password: '', 
+                    role: 'student',
+                    schoolIds: currentSelected // Pre-populate with selected school
+                  });
+                } else {
+                  setFormData({ name: '', email: '', password: '', role: 'student', schoolIds: [] });
+                }
+                setShowCreateModal(true);
+              }}
               className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
             >
               <Plus className="w-4 h-4" />
@@ -298,13 +338,20 @@ const Users = () => {
                   <Select
                     isMulti
                     options={[{ value: 'ALL', label: 'All' }, ...schools.map(s => ({ value: s._id, label: s.name }))]}
-                    value={formData.schoolIds && formData.schoolIds.length === schools.length
-                      ? [{ value: 'ALL', label: 'All' }]
-                      : (formData.schoolIds || []).map(id => {
-                          if (id === 'ALL') return { value: 'ALL', label: 'All' };
-                          const school = schools.find(s => s._id === id);
-                          return school ? { value: school._id, label: school.name } : null;
-                        }).filter(Boolean)
+                    value={formData.schoolIds && formData.schoolIds.length > 0
+                      ? (formData.schoolIds.length === schools.length
+                          ? [{ value: 'ALL', label: 'All' }]
+                          : formData.schoolIds.map(id => {
+                              if (id === 'ALL') return { value: 'ALL', label: 'All' };
+                              const school = schools.find(s => s._id === id);
+                              return school ? { value: school._id, label: school.name } : null;
+                            }).filter(Boolean))
+                      : (selectedSchools.length > 0
+                          ? selectedSchools.map(id => {
+                              const school = schools.find(s => s._id === id);
+                              return school ? { value: school._id, label: school.name } : null;
+                            }).filter(Boolean)
+                          : [])
                     }
                     onChange={selected => {
                       if (selected.some(opt => opt.value === 'ALL')) {
@@ -316,7 +363,11 @@ const Users = () => {
                     classNamePrefix="react-select"
                     placeholder="Select school(s)..."
                   />
-                  <small className="text-gray-500">Select multiple schools or 'All'.</small>
+                  <small className="text-gray-500">
+                    {selectedSchools.length > 0 
+                      ? `Default: ${schools.find(s => s._id === selectedSchools[0])?.name || 'Selected school'}. Select multiple schools or 'All'.`
+                      : 'Select multiple schools or \'All\'.'}
+                  </small>
                 </div>
               )}
               <div className="flex space-x-3">

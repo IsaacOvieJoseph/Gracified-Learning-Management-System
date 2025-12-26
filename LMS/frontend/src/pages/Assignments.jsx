@@ -23,6 +23,13 @@ const Assignments = () => {
   const [topics, setTopics] = useState([]); // To populate topic dropdown for assignment creation
   const [expandedSubmissions, setExpandedSubmissions] = useState(new Set()); // Track which submissions are expanded
   const [expandedAssignments, setExpandedAssignments] = useState(new Set()); // Track which assignments are expanded
+  const [selectedSchools, setSelectedSchools] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('selectedSchools')) || [];
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     fetchAssignments();
@@ -31,6 +38,8 @@ const Assignments = () => {
     }
     // Listen for school selection changes
     const handler = () => {
+      const newSelectedSchools = JSON.parse(localStorage.getItem('selectedSchools') || '[]');
+      setSelectedSchools(newSelectedSchools);
       fetchAssignments();
       if (['root_admin', 'school_admin', 'teacher', 'personal_teacher'].includes(user?.role)) {
         fetchClassroomsForCreation();
@@ -38,7 +47,7 @@ const Assignments = () => {
     };
     window.addEventListener('schoolSelectionChanged', handler);
     return () => window.removeEventListener('schoolSelectionChanged', handler);
-  }, [user]);
+  }, [user, selectedSchools]);
 
   useEffect(() => {
     if (searchQuery.trim() === '') {
@@ -76,7 +85,20 @@ const Assignments = () => {
         if (user?.role === 'teacher' || user?.role === 'personal_teacher') {
           relevantClassrooms = relevantClassrooms.filter(c => c.teacherId?._id === user?._id);
         } else if (user?.role === 'school_admin') {
-          relevantClassrooms = relevantClassrooms.filter(c => c.schoolId?._id === user?.schoolId);
+          // Filter by selected school from dropdown, or all schools if none selected
+          if (selectedSchools.length > 0) {
+            relevantClassrooms = relevantClassrooms.filter(c => 
+              selectedSchools.includes(c.schoolId?._id?.toString() || c.schoolId?.toString())
+            );
+          } else {
+            // If no school selected, show all classrooms from admin's schools
+            const adminSchoolIds = Array.isArray(user?.schoolId) 
+              ? user.schoolId.map(id => id.toString()) 
+              : [user?.schoolId?.toString()];
+            relevantClassrooms = relevantClassrooms.filter(c => 
+              adminSchoolIds.includes(c.schoolId?._id?.toString() || c.schoolId?.toString())
+            );
+          }
         }
 
         const assignmentPromises = relevantClassrooms.map(c =>
@@ -104,7 +126,20 @@ const Assignments = () => {
       if (user?.role === 'teacher' || user?.role === 'personal_teacher') {
         filteredClassrooms = filteredClassrooms.filter(c => c.teacherId?._id === user?._id);
       } else if (user?.role === 'school_admin') {
-        filteredClassrooms = filteredClassrooms.filter(c => c.schoolId?._id === user?.schoolId);
+        // Filter by selected school from dropdown, or all schools if none selected
+        if (selectedSchools.length > 0) {
+          filteredClassrooms = filteredClassrooms.filter(c => 
+            selectedSchools.includes(c.schoolId?._id?.toString() || c.schoolId?.toString())
+          );
+        } else {
+          // If no school selected, show all classrooms from admin's schools
+          const adminSchoolIds = Array.isArray(user?.schoolId) 
+            ? user.schoolId.map(id => id.toString()) 
+            : [user?.schoolId?.toString()];
+          filteredClassrooms = filteredClassrooms.filter(c => 
+            adminSchoolIds.includes(c.schoolId?._id?.toString() || c.schoolId?.toString())
+          );
+        }
       }
       setClassrooms(filteredClassrooms);
     } catch (error) {

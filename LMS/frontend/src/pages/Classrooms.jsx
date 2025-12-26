@@ -73,8 +73,17 @@ const Classrooms = () => {
         filteredClassrooms = filteredClassrooms.filter(c => c.published);
       }
       // School admin: filter by selected school unless 'All' (empty array)
-      if (user?.role === 'school_admin' && selectedSchools.length > 0) {
-        filteredClassrooms = filteredClassrooms.filter(c => selectedSchools.includes(c.schoolId?._id || c.schoolId));
+      if (user?.role === 'school_admin') {
+        if (selectedSchools.length > 0) {
+          filteredClassrooms = filteredClassrooms.filter(c => {
+            const classroomSchoolId = c.schoolId?._id?.toString() || c.schoolId?.toString();
+            return selectedSchools.some(selectedId => {
+              const selectedIdStr = selectedId?._id?.toString() || selectedId?.toString();
+              return classroomSchoolId === selectedIdStr;
+            });
+          });
+        }
+        // If no school selected (showing "All"), backend already filters by admin's schools
       }
       setClassrooms([...filteredClassrooms]);
       setFilteredClassrooms([...filteredClassrooms]);
@@ -88,8 +97,12 @@ const Classrooms = () => {
   const fetchTeachers = async () => {
     try {
       let url = '/users';
-      if (user?.role === 'school_admin' && user?.schoolId) {
-        url = `/users?schoolId=${user.schoolId}&role=teacher,personal_teacher`; // Filter by schoolId and roles
+      if (user?.role === 'school_admin') {
+        // Use selected school from dropdown, or fall back to user.schoolId
+        const schoolIdToUse = selectedSchools.length > 0 ? selectedSchools[0] : (user?.schoolId?.[0] || user?.schoolId);
+        if (schoolIdToUse) {
+          url = `/users?schoolId=${schoolIdToUse}&role=teacher,personal_teacher`; // Filter by schoolId and roles
+        }
       }
       console.log('Classrooms.jsx: Fetching teachers from URL:', url);
       const response = await api.get(url);
@@ -113,7 +126,7 @@ const Classrooms = () => {
     }
   };
 
-  // School selection state for school admin
+  // School selection state for school admin - sync with selectedSchools from SchoolSwitcher
   const [selectedSchool, setSelectedSchool] = useState(() => {
     try {
       const arr = JSON.parse(localStorage.getItem('selectedSchools'));
@@ -131,12 +144,40 @@ const Classrooms = () => {
     }
   }, [user]);
 
+  // Sync selectedSchool with selectedSchools from SchoolSwitcher
+  useEffect(() => {
+    const syncSchool = () => {
+      try {
+        const arr = JSON.parse(localStorage.getItem('selectedSchools'));
+        const newSelectedSchool = arr && arr.length ? arr[0] : '';
+        if (newSelectedSchool !== selectedSchool) {
+          setSelectedSchool(newSelectedSchool);
+        }
+      } catch {
+        if (selectedSchool !== '') {
+          setSelectedSchool('');
+        }
+      }
+    };
+    syncSchool();
+    // Listen for school selection changes
+    const handler = () => syncSchool();
+    window.addEventListener('schoolSelectionChanged', handler);
+    return () => window.removeEventListener('schoolSelectionChanged', handler);
+  }, [selectedSchool]);
+
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
       const submitData = { ...formData };
       if (user?.role === 'school_admin') {
-        submitData.schoolId = selectedSchool;
+        // Always use the currently selected school from dropdown (selectedSchools), or form selection
+        const currentSelectedSchool = selectedSchool || selectedSchools[0] || '';
+        if (!currentSelectedSchool) {
+          alert('Please select a school from the header dropdown or in the form');
+          return;
+        }
+        submitData.schoolId = currentSelectedSchool;
       }
       // Teachers don't need to provide teacherId (it's auto-assigned)
       if (user?.role === 'teacher' || user?.role === 'personal_teacher') {
@@ -175,7 +216,14 @@ const Classrooms = () => {
           </h2>
           {canCreate && (
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => {
+                // Sync selectedSchool with current selectedSchools when opening modal
+                const currentSelected = JSON.parse(localStorage.getItem('selectedSchools') || '[]');
+                if (currentSelected.length > 0 && user?.role === 'school_admin') {
+                  setSelectedSchool(currentSelected[0]);
+                }
+                setShowCreateModal(true);
+              }}
               className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
             >
               <Plus className="w-4 h-4" />
@@ -316,8 +364,12 @@ const Classrooms = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">School</label>
                   <select
-                    value={selectedSchool}
-                    onChange={e => setSelectedSchool(e.target.value)}
+                    value={selectedSchool || selectedSchools[0] || ''}
+                    onChange={e => {
+                      setSelectedSchool(e.target.value);
+                      // Reset teacher selection when school changes
+                      setFormData({ ...formData, teacherId: '' });
+                    }}
                     className="w-full px-4 py-2 border rounded-lg"
                     required
                   >
@@ -326,6 +378,11 @@ const Classrooms = () => {
                       <option key={s._id} value={s._id}>{s.name}</option>
                     ))}
                   </select>
+                  <small className="text-gray-500 text-xs mt-1 block">
+                    {selectedSchools.length > 0 
+                      ? `Default: ${schools.find(s => s._id === selectedSchools[0])?.name || 'Selected school'}. You can change it above.`
+                      : 'Please select a school from the header dropdown first'}
+                  </small>
                 </div>
               )}
               <div>
@@ -422,22 +479,43 @@ const Classrooms = () => {
                   required
                 />
               </div>
-              {['root_admin', 'school_admin'].includes(user?.role) && teachers.length > 0 && (
+              {['root_admin', 'school_admin'].includes(user?.role) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Assign Teacher</label>
-                  <select
-                    value={formData.teacherId}
-                    onChange={(e) => setFormData({ ...formData, teacherId: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-lg"
-                    required
-                  >
-                    <option value="">Select a teacher</option>
-                    {teachers.map(teacher => (
-                      <option key={teacher._id} value={teacher._id}>
-                        {teacher.name} ({teacher.email})
-                      </option>
-                    ))}
-                  </select>
+                  {(() => {
+                    // Filter teachers by selected school in the form
+                    const schoolIdInForm = selectedSchool || selectedSchools[0] || '';
+                    const filteredTeachers = schoolIdInForm && user?.role === 'school_admin'
+                      ? teachers.filter(teacher => {
+                          const teacherSchoolIds = Array.isArray(teacher.schoolId) 
+                            ? teacher.schoolId.map(id => id?.toString() || id)
+                            : [teacher.schoolId?._id?.toString() || teacher.schoolId?.toString()];
+                          return teacherSchoolIds.includes(schoolIdInForm.toString());
+                        })
+                      : teachers;
+                    
+                    return (
+                      <select
+                        value={formData.teacherId}
+                        onChange={(e) => setFormData({ ...formData, teacherId: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg"
+                        required
+                      >
+                        <option value="">Select a teacher</option>
+                        {filteredTeachers.length > 0 ? (
+                          filteredTeachers.map(teacher => (
+                            <option key={teacher._id} value={teacher._id}>
+                              {teacher.name} ({teacher.email})
+                            </option>
+                          ))
+                        ) : (
+                          <option value="" disabled>
+                            {schoolIdInForm ? 'No teachers found for selected school' : 'Please select a school first'}
+                          </option>
+                        )}
+                      </select>
+                    );
+                  })()}
                 </div>
               )}
               <div>

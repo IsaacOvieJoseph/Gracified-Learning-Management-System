@@ -26,16 +26,32 @@ router.get('/', auth, authorize('root_admin', 'school_admin', 'personal_teacher'
     if (req.user.role === 'root_admin') {
       // No additional filter needed based on req.user.role, query is already built from req.query
     }
-    // School Admin can only see teachers and students from their school (and only their schoolId if not provided in query)
+    // School Admin can only see teachers and students from their schools
     else if (req.user.role === 'school_admin') {
-      // Ensure school admin can only view users within their school, overriding query if present
-      // Use $in to match users whose schoolId array contains any of the admin's schoolIds
-      if (Array.isArray(req.user.schoolId) && req.user.schoolId.length > 0) {
-        query.schoolId = { $in: req.user.schoolId };
-      } else if (req.user.schoolId) {
-        // Handle case where schoolId might be a single value
-        query.schoolId = req.user.schoolId;
+      // Get all schools where this admin is the adminId (more reliable than user.schoolId array)
+      const School = require('../models/School');
+      const adminSchools = await School.find({ adminId: req.user._id }).select('_id');
+      const adminSchoolIds = adminSchools.map(s => s._id);
+      
+      // If a specific schoolId is provided in query, verify it belongs to this admin
+      if (req.query.schoolId) {
+        const requestedSchoolId = req.query.schoolId;
+        if (adminSchoolIds.some(id => id.toString() === requestedSchoolId.toString())) {
+          query.schoolId = requestedSchoolId;
+        } else {
+          // Requested school doesn't belong to admin, return empty
+          query._id = null; // This will return no results
+        }
+      } else {
+        // No specific school requested, show users from all admin's schools
+        if (adminSchoolIds.length > 0) {
+          query.schoolId = { $in: adminSchoolIds };
+        } else {
+          // Admin has no schools, return empty
+          query._id = null; // This will return no results
+        }
       }
+      
       if (!query.role) { // If role not specified in query, default to teachers/students
         query.role = { $in: ['teacher', 'student'] };
       }
@@ -82,9 +98,38 @@ router.post('/', auth, authorize('root_admin', 'school_admin'), async (req, res)
     }
 
     // School Admin can only create users for their school
-    const finalSchoolId = req.user.role === 'school_admin' 
-      ? req.user.schoolId 
-      : schoolId;
+    let finalSchoolId;
+    if (req.user.role === 'school_admin') {
+      // If schoolId is provided in body, verify the admin owns these schools
+      if (schoolId) {
+        const School = require('../models/School');
+        const providedSchoolIds = Array.isArray(schoolId) 
+          ? schoolId.map(id => id.toString()) 
+          : [schoolId.toString()];
+        
+        // Check if the admin is the adminId for all provided schools
+        // This is more reliable than checking schoolId array, as it checks actual ownership
+        const schools = await School.find({ 
+          _id: { $in: providedSchoolIds },
+          adminId: req.user._id 
+        });
+        
+        const foundSchoolIds = schools.map(s => s._id.toString());
+        const allValid = providedSchoolIds.every(id => foundSchoolIds.includes(id));
+        
+        if (allValid && schools.length === providedSchoolIds.length) {
+          // All provided schools belong to this admin
+          finalSchoolId = schoolId;
+        } else {
+          return res.status(403).json({ message: 'You can only assign users to your assigned schools' });
+        }
+      } else {
+        // If no schoolId provided, return error - school must be selected
+        return res.status(400).json({ message: 'School ID is required. Please select a school from the dropdown.' });
+      }
+    } else {
+      finalSchoolId = schoolId;
+    }
 
     const user = new User({
       name,

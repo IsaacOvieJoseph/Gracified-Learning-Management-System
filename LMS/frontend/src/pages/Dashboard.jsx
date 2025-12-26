@@ -20,9 +20,26 @@ const Dashboard = () => {
   const [recentClassrooms, setRecentClassrooms] = useState([]);
   const [showWelcome, setShowWelcome] = useState(true);
   const [schoolModalOpen, setSchoolModalOpen] = useState(false);
+  const [selectedSchools, setSelectedSchools] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('selectedSchools')) || [];
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     fetchData();
+  }, [selectedSchools, user]);
+
+  useEffect(() => {
+    // Listen for school selection changes
+    const handler = () => {
+      const newSelectedSchools = JSON.parse(localStorage.getItem('selectedSchools') || '[]');
+      setSelectedSchools(newSelectedSchools);
+    };
+    window.addEventListener('schoolSelectionChanged', handler);
+    return () => window.removeEventListener('schoolSelectionChanged', handler);
   }, []);
 
   useEffect(() => {
@@ -45,6 +62,22 @@ const Dashboard = () => {
         filteredClassrooms = classroomsRes.data.classrooms.filter(c => c.published);
       }
 
+      // School admin: filter by selected school if one is selected
+      if (user?.role === 'school_admin') {
+        if (selectedSchools.length > 0) {
+          filteredClassrooms = filteredClassrooms.filter(c => {
+            const classroomSchoolId = c.schoolId?._id?.toString() || c.schoolId?.toString();
+            return selectedSchools.some(selectedId => {
+              const selectedIdStr = selectedId?._id?.toString() || selectedId?.toString();
+              return classroomSchoolId === selectedIdStr;
+            });
+          });
+        } else {
+          // If no school selected (showing "All"), show all classrooms from admin's schools
+          // Backend already filters by admin's schools, so we can use all classrooms
+        }
+      }
+
       setRecentClassrooms(filteredClassrooms.slice(0, 5));
 
       // Calculate student count based on role
@@ -52,9 +85,12 @@ const Dashboard = () => {
       let classroomCount = 0;
 
       if (user?.role === 'root_admin' || user?.role === 'school_admin') {
-        // Admins see total students and all classrooms
-        studentCount = classroomsRes.data.classrooms.reduce((acc, c) => acc + (c.students?.length || 0), 0);
-        classroomCount = classroomsRes.data.classrooms.length;
+        // For school admin, use filtered classrooms if school is selected
+        const classroomsToCount = (user?.role === 'school_admin' && selectedSchools.length > 0) 
+          ? filteredClassrooms 
+          : classroomsRes.data.classrooms;
+        studentCount = classroomsToCount.reduce((acc, c) => acc + (c.students?.length || 0), 0);
+        classroomCount = classroomsToCount.length;
       } else if (user?.role === 'teacher' || user?.role === 'personal_teacher') {
         // Teachers see only students in their classes and only published classrooms count
         const teacherClassrooms = classroomsRes.data.classrooms.filter(c => c.teacherId?._id === user?._id);

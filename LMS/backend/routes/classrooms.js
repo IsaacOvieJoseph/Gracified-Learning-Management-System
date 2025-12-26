@@ -27,9 +27,18 @@ router.get('/', auth, subscriptionCheck, async (req, res) => {
     else if (req.user.role === 'teacher' || req.user.role === 'personal_teacher') {
       query = { teacherId: req.user._id };
     }
-    // School Admin sees classes from their school
-    else if (req.user.role === 'school_admin' && req.user.schoolId) {
-      query = { schoolId: req.user.schoolId };
+    // School Admin sees classes from their schools (all schools they admin)
+    else if (req.user.role === 'school_admin') {
+      // Get all schools where this admin is the adminId
+      const School = require('../models/School');
+      const adminSchools = await School.find({ adminId: req.user._id }).select('_id');
+      const adminSchoolIds = adminSchools.map(s => s._id);
+      if (adminSchoolIds.length > 0) {
+        query = { schoolId: { $in: adminSchoolIds } };
+      } else {
+        // If admin has no schools, return empty result
+        query = { _id: null }; // This will return no results
+      }
     }
 
     let classrooms = await Classroom.find(query)
@@ -184,7 +193,30 @@ router.post('/', auth, authorize('root_admin', 'school_admin', 'teacher', 'perso
     // Determine school ID
     let finalSchoolId = null; // Default to null
     if (req.user.role === 'school_admin') {
-      finalSchoolId = req.user.schoolId;
+      // Use provided schoolId from request body if available
+      if (schoolId) {
+        // Verify that the admin owns this school by checking School model
+        const School = require('../models/School');
+        const school = await School.findOne({ 
+          _id: schoolId,
+          adminId: req.user._id 
+        });
+        
+        if (school) {
+          finalSchoolId = schoolId;
+        } else {
+          return res.status(403).json({ message: 'You can only create classrooms for your assigned schools' });
+        }
+      } else {
+        // If no schoolId provided, find the first school where this admin is the adminId
+        const School = require('../models/School');
+        const firstSchool = await School.findOne({ adminId: req.user._id }).sort({ createdAt: 1 });
+        if (firstSchool) {
+          finalSchoolId = firstSchool._id;
+        } else {
+          return res.status(400).json({ message: 'No school found. Please create a school first or select one in the form.' });
+        }
+      }
     } else if (req.user.role === 'teacher') {
       // If a regular teacher creates a class, it should be associated with their school
       finalSchoolId = req.user.schoolId;

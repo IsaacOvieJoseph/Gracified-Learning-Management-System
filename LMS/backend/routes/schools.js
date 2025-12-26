@@ -6,6 +6,7 @@ const router = express.Router();
 // Create a school (root admin or school admin)
 router.post('/', auth, authorize('root_admin', 'school_admin'), async (req, res) => {
   try {
+    const User = require('../models/User');
     const { name, adminId: requestedAdminId } = req.body;
     let finalAdminId = req.user._id; // Default to current user for school_admin
 
@@ -15,6 +16,27 @@ router.post('/', auth, authorize('root_admin', 'school_admin'), async (req, res)
 
     const school = new School({ name, adminId: finalAdminId });
     await school.save();
+    
+    // Update the admin's schoolId array to include the new school
+    if (finalAdminId) {
+      const admin = await User.findById(finalAdminId);
+      if (admin) {
+        // Ensure schoolId is an array
+        if (!admin.schoolId) {
+          admin.schoolId = [];
+        } else if (!Array.isArray(admin.schoolId)) {
+          admin.schoolId = [admin.schoolId];
+        }
+        
+        // Add the new school ID if it's not already in the array
+        const schoolIdString = school._id.toString();
+        if (!admin.schoolId.some(id => id.toString() === schoolIdString)) {
+          admin.schoolId.push(school._id);
+          await admin.save();
+        }
+      }
+    }
+    
     return res.status(201).json({ message: 'School created successfully', school });
   } catch (error) {
     res.status(500).json({ message: error.message });
