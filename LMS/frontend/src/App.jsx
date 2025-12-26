@@ -10,6 +10,7 @@ import Whiteboard from './components/Whiteboard';
 import SchoolDetails from './pages/SchoolDetail';
 import Assignments from './pages/Assignments';
 import Payments from './pages/Payments';
+import PaystackCallback from './pages/PaystackCallback';
 import Users from './pages/Users';
 import SchoolsPage from './pages/Schools';
 import RegisterStudent from './pages/RegisterStudent';
@@ -153,6 +154,14 @@ const AppRoutes = () => {
         element={
           <PrivateRoute>
             <Payments />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/payments/verify"
+        element={
+          <PrivateRoute>
+            <PaystackCallback />
           </PrivateRoute>
         }
       />

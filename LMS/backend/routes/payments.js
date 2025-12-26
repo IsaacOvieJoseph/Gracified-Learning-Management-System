@@ -6,6 +6,7 @@ const Topic = require('../models/Topic');
 const User = require('../models/User');
 const Notification = require('../models/Notification'); // Import Notification model
 const axios = require('axios'); // Ensure axios is imported here
+const crypto = require('crypto');
 const { auth } = require('../middleware/auth');
 const router = express.Router();
 
@@ -73,6 +74,12 @@ router.get('/paystack/verify', auth, async (req, res) => {
     let normalizedAmount = amountReceived;
     if (currency === 'NGN' && typeof amountReceived === 'number') normalizedAmount = amountReceived / 100;
 
+    // idempotency: if payment with this reference already exists, return it
+    let existing = await Payment.findOne({ paystackReference: reference });
+    if (existing) {
+      return res.json({ message: 'Payment already processed', payment: existing });
+    }
+
     // create payment record
     const payment = new Payment({
       userId: req.user._id,
@@ -127,6 +134,104 @@ router.get('/paystack/verify', auth, async (req, res) => {
   }
 });
 
+// Paystack webhook - receives raw body and verifies signature
+router.post('/paystack/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
+    if (!PAYSTACK_SECRET) {
+      console.warn('Paystack webhook called but secret not configured');
+      return res.status(500).end();
+    }
+
+    const signature = req.headers['x-paystack-signature'] || req.headers['X-Paystack-Signature'];
+    const hash = crypto.createHmac('sha512', PAYSTACK_SECRET).update(req.body).digest('hex');
+    if (!signature || signature !== hash) {
+      console.warn('Invalid Paystack webhook signature');
+      return res.status(400).end();
+    }
+
+    const event = JSON.parse(req.body.toString());
+    if (!event) return res.status(400).end();
+
+    // Only process successful charge events
+    const evtName = event.event;
+    if (evtName !== 'charge.success' && evtName !== 'transaction.success') {
+      return res.status(200).json({ status: 'ignored', event: evtName });
+    }
+
+    const data = event.data || {};
+    const reference = data.reference;
+    const metadata = data.metadata || {};
+
+    if (!reference) return res.status(400).end();
+
+    // idempotency: if payment already exists, acknowledge
+    const existing = await Payment.findOne({ paystackReference: reference });
+    if (existing) {
+      return res.status(200).json({ status: 'ok', message: 'Already processed' });
+    }
+
+    const amountReceived = (data.amount !== undefined) ? data.amount : null; // in kobo for NGN
+    const currency = data.currency || process.env.PAYSTACK_CURRENCY || 'NGN';
+    let normalizedAmount = amountReceived;
+    if (currency && currency.toUpperCase() === 'NGN' && typeof amountReceived === 'number') normalizedAmount = amountReceived / 100;
+
+    const payment = new Payment({
+      userId: metadata.userId || null,
+      type: metadata.type || 'class_enrollment',
+      classroomId: metadata.classroomId || null,
+      topicId: metadata.topicId || null,
+      amount: normalizedAmount || 0,
+      paystackReference: reference,
+      status: 'completed'
+    });
+
+    await payment.save();
+
+    // handle enrollment if applicable (requires metadata.userId)
+    try {
+      if (payment.type === 'class_enrollment' && payment.classroomId && metadata.userId) {
+        const userId = metadata.userId;
+        const classroom = await Classroom.findById(payment.classroomId);
+        if (classroom && !classroom.students.map(String).includes(String(userId))) {
+          classroom.students.push(userId);
+          await classroom.save();
+
+          await User.findByIdAndUpdate(userId, { $addToSet: { enrolledClasses: payment.classroomId } });
+        }
+      }
+    } catch (enrollErr) {
+      console.error('Error enrolling user from Paystack webhook:', enrollErr.message);
+    }
+
+    // Send notification (best-effort) if metadata.userId present
+    try {
+      if (metadata.userId) {
+        await axios.post(`http://localhost:${process.env.PORT || 5000}/api/notifications/payment-notification`, {
+          userId: metadata.userId,
+          type: payment.type,
+          amount: payment.amount,
+          status: payment.status
+        }, { headers: { 'x-internal-api-key': process.env.INTERNAL_API_KEY } });
+
+        await Notification.create({
+          userId: metadata.userId,
+          message: `Your payment of ${payment.amount} ${currency} for ${payment.type.replace('_', ' ')} was successful.`,
+          type: 'payment_success',
+          entityId: payment._id,
+          entityRef: 'Payment'
+        });
+      }
+    } catch (notifErr) {
+      console.error('Paystack webhook notification error:', notifErr.message);
+    }
+
+    return res.status(200).json({ status: 'processed' });
+  } catch (err) {
+    console.error('Paystack webhook error', err);
+    return res.status(500).end();
+  }
+});
 // Create payment intent
 router.post('/create-intent', auth, async (req, res) => {
   try {

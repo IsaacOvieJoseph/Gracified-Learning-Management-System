@@ -13,6 +13,8 @@ const Payments = () => {
   const [loading, setLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(!!classroomId);
   const [classroomForPayment, setClassroomForPayment] = useState(null);
+  const [isPaying, setIsPaying] = useState(false);
+  const [payError, setPayError] = useState(null);
 
   useEffect(() => {
     fetchPayments();
@@ -48,16 +50,44 @@ const Payments = () => {
   };
 
   const handlePayment = async (classroomId, amount) => {
+    setPayError(null);
+    setIsPaying(true);
     try {
-      // If Paystack is configured on the server, use it
       const usePaystack = !!import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || false;
       if (usePaystack) {
         // Request server to initialize Paystack transaction
         const returnUrl = `${window.location.origin}/payments?classroomId=${classroomId}`;
         const resp = await api.post('/payments/paystack/initiate', { amount, classroomId, type: 'class_enrollment', returnUrl });
-        if (resp.data && resp.data.authorization_url) {
-          // redirect user to Paystack payment page
-          window.location.href = resp.data.authorization_url;
+        if (resp.data && resp.data.reference) {
+          // load Paystack inline script then open inline
+          await loadPaystackScript();
+          const pubKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+          const payAmount = (import.meta.env.VITE_PAYSTACK_CURRENCY || 'NGN').toLowerCase() === 'ngn' ? Math.round(amount * 100) : Math.round(amount * 100);
+          const handler = window.PaystackPop.setup({
+            key: pubKey,
+            email: (window.__user && window.__user.email) || '',
+            amount: payAmount,
+            ref: resp.data.reference,
+            onClose: function() {
+              setIsPaying(false);
+              setPayError('Payment window closed');
+            },
+            callback: async function(response) {
+              // verify with backend
+              try {
+                await api.get(`/payments/paystack/verify?reference=${encodeURIComponent(response.reference)}`);
+                alert('Payment successful! You are now enrolled.');
+                setShowPaymentModal(false);
+                fetchPayments();
+                window.location.href = `/classrooms/${classroomId}`;
+              } catch (err) {
+                setPayError(err.response?.data?.message || err.message || 'Verification failed');
+              } finally {
+                setIsPaying(false);
+              }
+            }
+          });
+          handler.openIframe();
           return;
         }
         throw new Error('Failed to initialize Paystack payment');
@@ -81,8 +111,21 @@ const Payments = () => {
       fetchPayments();
       window.location.href = `/classrooms/${classroomId}`;
     } catch (error) {
-      alert(error.response?.data?.message || error.message || 'Payment failed');
+      setPayError(error.response?.data?.message || error.message || 'Payment failed');
+      setIsPaying(false);
     }
+  };
+
+  const loadPaystackScript = () => {
+    return new Promise((resolve, reject) => {
+      if (window.PaystackPop) return resolve();
+      const script = document.createElement('script');
+      script.src = 'https://js.paystack.co/v1/inline.js';
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Failed to load Paystack script'));
+      document.body.appendChild(script);
+    });
   };
 
   // After returning from Paystack, Paystack may attach `reference` in the query string.
@@ -140,8 +183,11 @@ const Payments = () => {
             </div>
             <div className="flex justify-end gap-3">
               <button className="px-4 py-2 border rounded" onClick={() => { setShowPaymentModal(false); setClassroomForPayment(null); window.history.replaceState({}, document.title, '/payments'); }}>Cancel</button>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded" onClick={() => handlePayment(classroomForPayment._id, classroomForPayment.pricing?.amount || 0)}>Pay Now</button>
+              <button disabled={isPaying} className={`px-4 py-2 ${isPaying ? 'bg-gray-400' : 'bg-blue-600'} text-white rounded`} onClick={() => handlePayment(classroomForPayment._id, classroomForPayment.pricing?.amount || 0)}>
+                {isPaying ? 'Processing...' : 'Pay Now'}
+              </button>
             </div>
+            {payError && <div className="mt-3 text-sm text-red-600">{payError}</div>}
           </div>
         </div>
       )}
