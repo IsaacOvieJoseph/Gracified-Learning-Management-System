@@ -111,10 +111,14 @@ io.on('connection', (socket) => {
       }
       const sessionId = whiteboardSessions.addClient(classId, socket.id);
       socket.join(sessionId);
-      socket.data = { ...socket.data, classId, sessionId, isTeacher: !!isTeacher };
+      // assign a display color for presence cursor
+      const color = `hsl(${Math.floor(Math.abs(hashCode(socket.data.user._id.toString())) % 360)},70%,40%)`;
+      socket.data = { ...socket.data, classId, sessionId, isTeacher: !!isTeacher, color };
       io.to(sessionId).emit('wb:user-joined', { socketId: socket.id, active: whiteboardSessions.getActiveCount(classId) });
       const locked = whiteboardSessions.isLocked(classId);
+      const follow = whiteboardSessions.isFollow(classId);
       socket.emit('wb:lock-state', { locked });
+      socket.emit('wb:follow-state', { follow });
       // send persisted history to the newly joined socket
       try {
         const wb = await Whiteboard.findOne({ classId });
@@ -127,6 +131,40 @@ io.on('connection', (socket) => {
     } catch (err) {
       console.error('wb:join error', err);
     }
+  });
+
+  // receive cursor positions from clients and broadcast to room
+  socket.on('wb:cursor', ({ xNorm, yNorm }) => {
+    const { classId, sessionId } = socket.data || {};
+    if (!classId || !sessionId) return;
+    const payload = {
+      socketId: socket.id,
+      xNorm,
+      yNorm,
+      name: socket.data.user ? (socket.data.user.name || socket.data.user.email || 'User') : 'User',
+      color: socket.data.color || '#000'
+    };
+    socket.to(sessionId).emit('wb:cursor', payload);
+  });
+
+  // teacher broadcasts viewport; when locked this enforces viewer positions
+  socket.on('wb:viewport', ({ scrollTopNorm }) => {
+    const { classId, sessionId } = socket.data || {};
+    if (!classId || !sessionId) return;
+    // only allow teacher to broadcast viewport
+    if (!socket.data.isTeacher) return;
+    // only broadcast when follow mode is enabled
+    if (!whiteboardSessions.isFollow(classId)) return;
+    io.to(sessionId).emit('wb:viewport', { scrollTopNorm, teacherSocketId: socket.id });
+  });
+
+  // teacher toggles follow mode for the session
+  socket.on('wb:follow', ({ follow }) => {
+    const { classId, sessionId } = socket.data || {};
+    if (!classId || !sessionId) return;
+    if (!socket.data.isTeacher) return;
+    whiteboardSessions.follow(classId, !!follow);
+    io.to(sessionId).emit('wb:follow-state', { follow: !!follow });
   });
 
   socket.on('wb:leave', () => {
@@ -200,6 +238,17 @@ io.on('connection', (socket) => {
     if (s) io.to(s.sessionId).emit('wb:user-left', { socketId: socket.id, active });
   });
 });
+
+// small deterministic hash for consistent HSL color generation
+function hashCode(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const chr = str.charCodeAt(i);
+    hash = (hash << 5) - hash + chr;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return hash;
+}
 
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

@@ -12,9 +12,13 @@ export default function Whiteboard() {
   const ctxRef = useRef(null);
   const canvasHeightRef = useRef(4000);
   const socketRef = useRef(null);
+  const containerRef = useRef(null);
+  const [otherCursors, setOtherCursors] = useState({});
+  const lastCursorEmitRef = useRef(0);
   const { user } = useAuth();
   const [isDrawing, setIsDrawing] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [followEnabled, setFollowEnabled] = useState(false);
 
   const isTeacher = user && (user.role === 'teacher' || user.role === 'personal_teacher' || user.role === 'school_admin' || user.role === 'root_admin');
 
@@ -57,12 +61,31 @@ export default function Whiteboard() {
       drawLine(prev, curr, color, width, false);
     });
 
+    socket.on('wb:cursor', (payload) => {
+      // payload: { socketId, xNorm, yNorm, name, color }
+      setOtherCursors((prev) => ({ ...prev, [payload.socketId]: { ...payload, lastSeen: Date.now() } }));
+    });
+
+    socket.on('wb:viewport', ({ scrollTopNorm, teacherSocketId }) => {
+      // when teacher broadcasts viewport and follow mode is enabled, students follow
+      if (!isTeacher && followEnabled && containerRef.current && canvasRef.current) {
+        const canvas = canvasRef.current;
+        const container = containerRef.current;
+        const maxScroll = Math.max(0, canvas.height - container.clientHeight);
+        const newTop = Math.max(0, Math.min(1, scrollTopNorm)) * maxScroll;
+        container.scrollTop = newTop;
+      }
+    });
+
     socket.on('wb:clear', () => {
       clearCanvas(false);
     });
 
     socket.on('wb:lock-state', ({ locked }) => {
       setLocked(!!locked);
+    });
+    socket.on('wb:follow-state', ({ follow }) => {
+      setFollowEnabled(!!follow);
     });
 
     socket.on('wb:history', (strokes) => {
@@ -76,7 +99,20 @@ export default function Whiteboard() {
       }
     });
 
+    // cleanup stale cursors periodically
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      setOtherCursors((prev) => {
+        const next = { ...prev };
+        Object.keys(next).forEach((k) => {
+          if (now - next[k].lastSeen > 8000) delete next[k];
+        });
+        return next;
+      });
+    }, 3000);
+
     return () => {
+      clearInterval(cleanupInterval);
       socket.emit('wb:leave');
       socket.disconnect();
     };
@@ -160,6 +196,19 @@ export default function Whiteboard() {
     const prev = socketRef.current._lastPos || pos;
     drawLine(prev, pos, '#000', 2, true);
     socketRef.current._lastPos = pos;
+    // emit cursor position (normalized) throttled
+    try {
+      const now = Date.now();
+      if (now - lastCursorEmitRef.current > 80) {
+        const canvas = canvasRef.current;
+        const xNorm = pos.x / canvas.width;
+        const yNorm = pos.y / canvas.height;
+        socketRef.current.emit('wb:cursor', { xNorm, yNorm });
+        lastCursorEmitRef.current = now;
+      }
+    } catch (err) {
+      // ignore
+    }
   };
   const handlePointerUp = () => {
     setIsDrawing(false);
@@ -177,18 +226,53 @@ export default function Whiteboard() {
     setLocked(!locked);
   };
 
+  // teacher: emit viewport on scroll when locked; students: follow teacher when locked
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !socketRef.current) return;
+
+    let lastEmit = 0;
+    const onScroll = () => {
+      if (!socketRef.current) return;
+      if (!isTeacher) return;
+      if (!whiteboardSessionLocked()) return; // helper below
+      const now = Date.now();
+      if (now - lastEmit < 100) return;
+      lastEmit = now;
+      const canvas = canvasRef.current;
+      const maxScroll = Math.max(0, canvas.height - container.clientHeight);
+      const scrollTopNorm = maxScroll > 0 ? container.scrollTop / maxScroll : 0;
+      socketRef.current.emit('wb:viewport', { scrollTopNorm });
+    };
+
+    if (isTeacher) {
+      container.addEventListener('scroll', onScroll, { passive: true });
+    }
+
+    return () => {
+      if (isTeacher) container.removeEventListener('scroll', onScroll);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTeacher, locked]);
+
+  function whiteboardSessionLocked() {
+    // prefer server lock state; local locked state is okay as an approximation
+    return !!locked;
+  }
+
   return (
     <div className="p-4 h-full" style={{ height: '100%' }}>
       <div className="flex items-center gap-2 mb-2">
         <h3 className="font-semibold">Whiteboard</h3>
         {isTeacher && <button className="px-3 py-1 bg-red-500 text-white rounded" onClick={onClear}>Clear</button>}
         {isTeacher && <button className="px-3 py-1 bg-gray-700 text-white rounded" onClick={onToggleLock}>{locked ? 'Unlock' : 'Lock'}</button>}
+        {isTeacher && <button className="px-3 py-1 bg-indigo-600 text-white rounded" onClick={() => { socketRef.current?.emit('wb:follow', { follow: !followEnabled }); setFollowEnabled(!followEnabled); }}>{followEnabled ? 'Disable Follow' : 'Enable Follow'}</button>}
         <div className="ml-auto">{locked ? 'Locked' : 'Open'}</div>
       </div>
-      <div style={{ height: 'calc(100vh - 140px)' }}>
+      <div ref={containerRef} style={{ height: 'calc(100vh - 140px)', overflowY: 'auto', position: 'relative' }}>
         <canvas
           ref={canvasRef}
-          style={{ width: '100%', height: '100%', border: '1px solid #e5e7eb', touchAction: 'none' }}
+          style={{ width: '100%', height: `${canvasHeightRef.current}px`, border: '1px solid #e5e7eb', touchAction: 'none', display: 'block' }}
           onMouseDown={handlePointerDown}
           onMouseMove={handlePointerMove}
           onMouseUp={handlePointerUp}
@@ -197,6 +281,23 @@ export default function Whiteboard() {
           onTouchMove={handlePointerMove}
           onTouchEnd={handlePointerUp}
         />
+
+        {/* render other users' cursors */}
+        {Object.keys(otherCursors).map((id) => {
+          const c = otherCursors[id];
+          if (!c) return null;
+          const canvas = canvasRef.current;
+          const container = containerRef.current;
+          if (!canvas || !container) return null;
+          const px = c.xNorm * canvas.width;
+          const py = c.yNorm * canvas.height - container.scrollTop;
+          return (
+            <div key={id} style={{ position: 'absolute', left: px + 8, top: py - 8, pointerEvents: 'none', zIndex: 40 }}>
+              <div style={{ background: c.color || '#000', color: '#fff', padding: '2px 6px', borderRadius: 6, fontSize: 12, whiteSpace: 'nowrap' }}>{c.name}</div>
+              <div style={{ width: 8, height: 8, background: c.color || '#000', borderRadius: '50%', marginTop: 4 }} />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

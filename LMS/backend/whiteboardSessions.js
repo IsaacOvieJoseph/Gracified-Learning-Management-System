@@ -16,6 +16,7 @@ class WhiteboardSessions {
       clients: new Set(),
       createdAt: Date.now(),
       locked: false,
+      follow: false, // when true, students follow teacher viewport/cursor
     };
     this.sessions[classId] = s;
     return s;
@@ -61,6 +62,17 @@ class WhiteboardSessions {
   isLocked(classId) {
     const s = this.sessions[classId];
     return s ? !!s.locked : false;
+  }
+
+  follow(classId, follow) {
+    const s = this.sessions[classId];
+    if (!s) return;
+    s.follow = !!follow;
+  }
+
+  isFollow(classId) {
+    const s = this.sessions[classId];
+    return s ? !!s.follow : false;
   }
 }
 
