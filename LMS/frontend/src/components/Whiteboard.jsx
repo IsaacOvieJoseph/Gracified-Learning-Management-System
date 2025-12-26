@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useContext } from 'react';
+import React, { useRef, useEffect, useState, useContext, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -14,6 +14,12 @@ export default function Whiteboard() {
   const overlayRef = useRef(null);
   const socketRef = useRef(null);
   const containerRef = useRef(null);
+  const strokeBufferRef = useRef([]);
+  const flushIntervalRef = useRef(null);
+  const undoStackRef = useRef([]);
+  const redoStackRef = useRef([]);
+  const strokeHistoryRef = useRef([]); // local authoritative history for redraws
+  const [textInput, setTextInput] = useState({ visible: false, x: 0, y: 0, value: '', fontSize: 18 });
   const [otherCursors, setOtherCursors] = useState({});
   const lastCursorEmitRef = useRef(0);
   const { user } = useAuth();
@@ -26,6 +32,41 @@ export default function Whiteboard() {
   const shapeStartRef = useRef(null);
 
   const isTeacher = user && (user.role === 'teacher' || user.role === 'personal_teacher' || user.role === 'school_admin' || user.role === 'root_admin');
+
+  const generateId = () => {
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    return `id_${Date.now()}_${Math.floor(Math.random()*100000)}`;
+  };
+
+  const pushToBuffer = (stroke) => {
+    const s = { ...(stroke || {}) };
+    if (!s._id && !s.id) s._id = generateId();
+    if (!s.ts) s.ts = new Date().toISOString();
+    strokeBufferRef.current.push(s);
+    // record in local history and undo stack
+    strokeHistoryRef.current.push(s);
+    undoStackRef.current.push(s);
+    // flush if buffer large
+    if (strokeBufferRef.current.length >= 30) flushBuffer();
+  };
+
+  const flushBuffer = useCallback(() => {
+    const buf = strokeBufferRef.current;
+    if (!buf || buf.length === 0) return;
+    const toSend = buf.splice(0, buf.length);
+    if (socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit('wb:draw-bulk', { strokes: toSend });
+    }
+  }, []);
+
+  const redrawAll = () => {
+    const canvas = canvasRef.current;
+    const ctx = ctxRef.current;
+    if (!canvas || !ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // redraw each stroke in order
+    strokeHistoryRef.current.forEach(s => renderStroke(s, false));
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -74,8 +115,10 @@ export default function Whiteboard() {
     socket.emit('wb:join', { classId });
 
     socket.on('wb:draw', (data) => {
-      // data may contain type and payload
+      // real-time single stroke from another client
       renderStroke(data, false);
+      // record to local history if it has an id
+      if (data && (data._id || data.id)) strokeHistoryRef.current.push(data);
     });
 
     socket.on('wb:cursor', (payload) => {
@@ -108,10 +151,24 @@ export default function Whiteboard() {
     socket.on('wb:history', (strokes) => {
       try {
         // draw persisted strokes in order
-        strokes.forEach((s) => renderStroke(s, false));
+        strokes.forEach((s) => {
+          renderStroke(s, false);
+          // populate history
+          strokeHistoryRef.current.push(s);
+        });
       } catch (err) {
         console.error('Error replaying history', err);
       }
+    });
+
+    // when a stroke is removed (undo by owner or teacher), remove locally and redraw
+    socket.on('wb:remove-stroke', ({ strokeId }) => {
+      if (!strokeId) return;
+      strokeHistoryRef.current = strokeHistoryRef.current.filter(s => (s._id || s.id) !== strokeId);
+      // redraw all
+      redrawAll();
+      // also remove from undo stack if present
+      undoStackRef.current = undoStackRef.current.filter(s => (s._id || s.id) !== strokeId);
     });
 
     // cleanup stale cursors periodically
@@ -126,8 +183,15 @@ export default function Whiteboard() {
       });
     }, 3000);
 
+    // setup periodic flush of buffered strokes
+    flushIntervalRef.current = setInterval(() => {
+      try { flushBuffer(); } catch (e) { /* ignore */ }
+    }, 700);
+
     return () => {
       clearInterval(cleanupInterval);
+      if (flushIntervalRef.current) clearInterval(flushIntervalRef.current);
+      try { flushBuffer(); } catch (e) {}
       socket.emit('wb:leave');
       socket.disconnect();
     };
@@ -179,7 +243,10 @@ export default function Whiteboard() {
     if (!emit) return;
     // emit normalized coords so strokes replay correctly on different client sizes
     const norm = (pt) => ({ x: pt.x / canvas.width, y: pt.y / canvas.height });
-    socketRef.current.emit('wb:draw', { type: 'line', prev: norm(p1), curr: norm(p2), color, width });
+    const stroke = { type: 'line', prev: norm(p1), curr: norm(p2), color, width };
+    if (!stroke._id && !stroke.id) stroke._id = generateId();
+    socketRef.current.emit('wb:draw', { ...stroke, persist: false });
+    pushToBuffer(stroke);
   }
 
   function renderStroke(s, emit = false) {
@@ -280,15 +347,8 @@ export default function Whiteboard() {
         ov.height = canvasRef.current.height;
       }
     } else if (tool === 'text') {
-      // prompt for text input
-      const txt = window.prompt('Enter text');
-      if (txt) {
-        const canvas = canvasRef.current;
-        const posNorm = { x: pos.x / canvas.width, y: pos.y / canvas.height };
-        const stroke = { type: 'text', pos: posNorm, text: txt, color, fontSize: 18 };
-        renderStroke(stroke, false);
-        socketRef.current.emit('wb:draw', stroke);
-      }
+      // show inline text input at clicked position
+      setTextInput({ visible: true, x: pos.x, y: pos.y - containerRef.current.scrollTop, value: '', fontSize: 18 });
     }
   };
   const handlePointerMove = (e) => {
@@ -303,8 +363,10 @@ export default function Whiteboard() {
       if (!isDrawing) return;
       const prev = socketRef.current._lastPos || pos;
       // draw erase locally
-      renderStroke({ type: 'erase', prev: { x: prev.x / canvasRef.current.width, y: prev.y / canvasRef.current.height }, curr: { x: pos.x / canvasRef.current.width, y: pos.y / canvasRef.current.height }, width: width * 8 }, false);
-      socketRef.current.emit('wb:draw', { type: 'erase', prev: { x: prev.x / canvasRef.current.width, y: prev.y / canvasRef.current.height }, curr: { x: pos.x / canvasRef.current.width, y: pos.y / canvasRef.current.height }, width: width * 8 });
+      const eraseStroke = { type: 'erase', prev: { x: prev.x / canvasRef.current.width, y: prev.y / canvasRef.current.height }, curr: { x: pos.x / canvasRef.current.width, y: pos.y / canvasRef.current.height }, width: width * 8 };
+      renderStroke(eraseStroke, false);
+      socketRef.current.emit('wb:draw', { ...eraseStroke, persist: false });
+      pushToBuffer(eraseStroke);
       socketRef.current._lastPos = pos;
     } else if (tool === 'rect' || tool === 'circle') {
       // draw preview on overlay
@@ -363,10 +425,49 @@ export default function Whiteboard() {
         const ov = overlayRef.current;
         if (ov) ov.getContext('2d').clearRect(0, 0, ov.width, ov.height);
         renderStroke(stroke, false);
-        socketRef.current.emit('wb:draw', stroke);
+        socketRef.current.emit('wb:draw', { ...stroke, persist: false });
+        pushToBuffer(stroke);
       }
       shapeStartRef.current = null;
     }
+  };
+
+  // handler for submitting text input
+  const submitTextInput = () => {
+    if (!textInput.value) {
+      setTextInput({ visible: false, x: 0, y: 0, value: '' });
+      return;
+    }
+    const canvas = canvasRef.current;
+    const pos = { x: textInput.x, y: textInput.y + containerRef.current.scrollTop };
+    const posNorm = { x: pos.x / canvas.width, y: pos.y / canvas.height };
+    const stroke = { type: 'text', pos: posNorm, text: textInput.value, color, fontSize: textInput.fontSize };
+    renderStroke(stroke, false);
+    socketRef.current.emit('wb:draw', { ...stroke, persist: false });
+    pushToBuffer(stroke);
+    setTextInput({ visible: false, x: 0, y: 0, value: '' });
+  };
+
+  const onExportPNG = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    // create a temporary canvas to draw a white background then the board on top
+    const tmp = document.createElement('canvas');
+    tmp.width = canvas.width;
+    tmp.height = canvas.height;
+    const tctx = tmp.getContext('2d');
+    // fill white background to avoid transparent/black background in saved PNG
+    tctx.fillStyle = '#ffffff';
+    tctx.fillRect(0, 0, tmp.width, tmp.height);
+    // draw the main canvas onto the temp canvas
+    tctx.drawImage(canvas, 0, 0);
+    const url = tmp.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `whiteboard_${classId || 'board'}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   };
 
   const onClear = () => {
@@ -435,6 +536,11 @@ export default function Whiteboard() {
                   <button key={c} onClick={()=>setColor(c)} style={{ width:20, height:20, background:c, border: c==='#ffffff' ? '1px solid #ccc' : 'none' }} />
                 ))}
               </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 12 }}>
+                <button onClick={() => { if (undoStackRef.current.length>0) { const s = undoStackRef.current.pop(); redoStackRef.current.push(s); socketRef.current.emit('wb:remove-stroke', { strokeId: s._id || s.id }); strokeHistoryRef.current = strokeHistoryRef.current.filter(x => (x._id||x.id) !== (s._id||s.id)); redrawAll(); } }} title="Undo" className="px-2 py-1 rounded bg-white">↶</button>
+                <button onClick={() => { if (redoStackRef.current.length>0) { const s = redoStackRef.current.pop(); renderStroke(s, false); pushToBuffer(s); socketRef.current.emit('wb:draw', { ...s, persist: false }); } }} title="Redo" className="px-2 py-1 rounded bg-white">↷</button>
+                <button onClick={onExportPNG} title="Export PNG" className="px-2 py-1 rounded bg-white">Export PNG</button>
+              </div>
             </div>
           )}
         </div>
@@ -454,6 +560,18 @@ export default function Whiteboard() {
         />
         {/* overlay canvas for previews */}
         <canvas ref={overlayRef} style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', width: '100%', height: `${canvasHeightRef.current}px` }} />
+
+        {/* inline text input */}
+        {textInput.visible && (
+          <input
+            autoFocus
+            value={textInput.value}
+            onChange={(e)=>setTextInput(t=>({ ...t, value: e.target.value }))}
+            onKeyDown={(e)=>{ if (e.key==='Enter') submitTextInput(); if (e.key==='Escape') setTextInput({ visible: false, x:0, y:0, value: '' }); }}
+            onBlur={()=>submitTextInput()}
+            style={{ position: 'absolute', left: textInput.x, top: textInput.y, zIndex: 60, padding: 6, fontSize: textInput.fontSize, minWidth: 120 }}
+          />
+        )}
 
         {/* render other users' cursors */}
         {Object.keys(otherCursors).map((id) => {
