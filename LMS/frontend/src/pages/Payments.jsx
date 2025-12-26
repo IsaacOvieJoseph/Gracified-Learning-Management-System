@@ -89,9 +89,13 @@ const Payments = () => {
 
             if (typeof handleCallback !== 'function') throw new Error('Invalid callback');
 
+            if (!user || !user.email) {
+              throw new Error('User email not available. Please log in before paying.');
+            }
+
             const handler = window.PaystackPop.setup({
               key: pubKey,
-              email: (window.__user && window.__user.email) || '',
+              email: user.email,
               amount: payAmount,
               ref: resp.data.reference,
               onClose: handleOnClose,
