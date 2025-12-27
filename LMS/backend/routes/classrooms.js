@@ -3,6 +3,7 @@ const Classroom = require('../models/Classroom');
 const User = require('../models/User');
 const School = require('../models/School');
 const Notification = require('../models/Notification'); // New import
+const CallSession = require('../models/CallSession');
 const { auth, authorize } = require('../middleware/auth');
 const subscriptionCheck = require('../middleware/subscriptionCheck'); // Import subscriptionCheck middleware
 const { filterClassroomsBySubscription, isClassroomOwnerSubscriptionValid } = require('../utils/subscriptionHelper');
@@ -595,6 +596,110 @@ router.put('/:id/teacher', auth, authorize('root_admin'), subscriptionCheck, asy
     await classroom.populate('teacherId', 'name email');
     res.json({ message: 'Teacher updated successfully', classroom });
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Generate a pseudo Google Meet link (note: creating a real Meet requires Google Workspace API/OAuth)
+function generateGoogleMeetLink() {
+  const rand = (len) => Array.from({ length: len }, () => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join('');
+  return `https://meet.google.com/${rand(3)}-${rand(4)}-${rand(3)}`;
+}
+
+// Start a class call (teacher, personal_teacher owner, school_admin of school, root_admin)
+router.post('/:id/call/start', auth, subscriptionCheck, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id).populate('schoolId');
+    if (!classroom) return res.status(404).json({ message: 'Classroom not found' });
+
+    const user = req.user;
+
+    // Permission: teacher assigned, personal_teacher owner, school_admin of the school, or root_admin
+    const teacherIdStr = classroom.teacherId?._id ? classroom.teacherId._id.toString() : (classroom.teacherId ? classroom.teacherId.toString() : null);
+    const isTeacherOwner = teacherIdStr && user._id.toString() === teacherIdStr;
+    const isPersonalTeacherOwner = user.role === 'personal_teacher' && isTeacherOwner;
+    const isRoot = user.role === 'root_admin';
+    const userSchoolId = Array.isArray(user.schoolId) ? (user.schoolId[0] && user.schoolId[0].toString()) : (user.schoolId && user.schoolId.toString && user.schoolId.toString());
+    const classSchoolId = classroom.schoolId?._id ? classroom.schoolId._id.toString() : (classroom.schoolId ? classroom.schoolId.toString() : null);
+    const isSchoolAdminOfClass = user.role === 'school_admin' && classSchoolId && userSchoolId && classSchoolId === userSchoolId;
+
+    if (!(isTeacherOwner || isPersonalTeacherOwner || isRoot || isSchoolAdminOfClass)) {
+      return res.status(403).json({ message: 'Access denied. Only class teacher or admins can start the call.' });
+    }
+
+    // Find latest call session
+    const latest = await CallSession.findOne({ classroomId: classroom._id }).sort({ startedAt: -1 });
+    const now = new Date();
+    let link = null;
+    let created = false;
+
+    if (!latest) {
+      // create a real Google Meet if configured, otherwise fallback to pseudo link
+      try {
+        const { createGoogleMeet } = require('../utils/googleMeet');
+        const meet = await createGoogleMeet({ summary: `Class: ${classroom.name}`, attendees: [] });
+        link = meet.meetUrl || generateGoogleMeetLink();
+      } catch (err) {
+        console.warn('Google Meet creation failed, falling back to pseudo link:', err.message);
+        link = generateGoogleMeetLink();
+      }
+      const session = new CallSession({ classroomId: classroom._id, startedBy: user._id, link, startedAt: now });
+      await session.save();
+      created = true;
+    } else {
+      const diffMs = now - new Date(latest.startedAt);
+      const fortyFiveMin = 45 * 60 * 1000;
+      if (diffMs > fortyFiveMin) {
+        try {
+          const { createGoogleMeet } = require('../utils/googleMeet');
+          const meet = await createGoogleMeet({ summary: `Class: ${classroom.name}`, attendees: [] });
+          link = meet.meetUrl || generateGoogleMeetLink();
+        } catch (err) {
+          console.warn('Google Meet creation failed, falling back to pseudo link:', err.message);
+          link = generateGoogleMeetLink();
+        }
+        const session = new CallSession({ classroomId: classroom._id, startedBy: user._id, link, startedAt: now });
+        await session.save();
+        created = true;
+      } else {
+        link = latest.link;
+      }
+    }
+
+    res.json({ link, created, startedAt: now });
+  } catch (error) {
+    console.error('Error starting class call:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get latest call link for a classroom (join) - allowed for enrolled students, teacher, school admin of school, personal teacher owner, root_admin
+router.get('/:id/call', auth, subscriptionCheck, async (req, res) => {
+  try {
+    const classroom = await Classroom.findById(req.params.id).populate('students').populate('schoolId');
+    if (!classroom) return res.status(404).json({ message: 'Classroom not found' });
+
+    const user = req.user;
+
+    const enrolled = (classroom.students || []).some(s => (s._id ? s._id.toString() : s.toString()) === user._id.toString()) || (user.enrolledClasses || []).some(cid => cid.toString() === classroom._id.toString());
+    const teacherIdStr = classroom.teacherId?._id ? classroom.teacherId._id.toString() : (classroom.teacherId ? classroom.teacherId.toString() : null);
+    const isTeacherOwner = teacherIdStr && user._id.toString() === teacherIdStr;
+    const isRoot = user.role === 'root_admin';
+    const userSchoolId = Array.isArray(user.schoolId) ? (user.schoolId[0] && user.schoolId[0].toString()) : (user.schoolId && user.schoolId.toString && user.schoolId.toString());
+    const classSchoolId = classroom.schoolId?._id ? classroom.schoolId._id.toString() : (classroom.schoolId ? classroom.schoolId.toString() : null);
+    const isSchoolAdminOfClass = user.role === 'school_admin' && classSchoolId && userSchoolId && classSchoolId === userSchoolId;
+    const isPersonalTeacherOwner = user.role === 'personal_teacher' && isTeacherOwner;
+
+    if (!(enrolled || isTeacherOwner || isRoot || isSchoolAdminOfClass || isPersonalTeacherOwner)) {
+      return res.status(403).json({ message: 'Access denied. Only enrolled students, class teacher, school admin, personal teacher owner, or root admin can join the call.' });
+    }
+
+    const latest = await CallSession.findOne({ classroomId: classroom._id }).sort({ startedAt: -1 });
+    if (!latest) return res.status(404).json({ message: 'No active call found' });
+
+    res.json({ link: latest.link, startedAt: latest.startedAt });
+  } catch (error) {
+    console.error('Error fetching class call:', error);
     res.status(500).json({ message: error.message });
   }
 });

@@ -17,6 +17,7 @@ const ClassroomDetail = () => {
   const { user, loading: userLoading } = useAuth();
   const [classroom, setClassroom] = useState(null);
   const [whiteboardInfo, setWhiteboardInfo] = useState(null);
+  const [currentCall, setCurrentCall] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showTopicModal, setShowTopicModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -115,6 +116,36 @@ const ClassroomDetail = () => {
     }
   }, [classroom, user]);
 
+  // Fetch latest call info (if user can view/start)
+  useEffect(() => {
+    const fetchCall = async () => {
+      if (!classroom || !user) return;
+
+      // determine basic starter permission (teacher owner, personal teacher owner, school_admin of class, root_admin)
+      const teacherIdStr = classroom.teacherId?._id ? classroom.teacherId._id.toString() : (classroom.teacherId ? classroom.teacherId.toString() : null);
+      const isTeacherOwner = teacherIdStr && user._id.toString() === teacherIdStr;
+      const isRoot = user.role === 'root_admin';
+      // Determine if the current user is the admin of the classroom's school (classroom.schoolId.adminId populated)
+      const classAdminId = classroom.schoolId?.adminId?._id ? classroom.schoolId.adminId._id.toString() : (classroom.schoolId?.adminId ? classroom.schoolId.adminId.toString() : null);
+      const isSchoolAdminOfClass = user.role === 'school_admin' && classAdminId && user._id && classAdminId === user._id.toString();
+
+      const canViewCall = isTeacherOwner || isRoot || isSchoolAdminOfClass || (classroom.students || []).some(s => (s._id ? s._id.toString() : s.toString()) === user._id.toString()) || (user.enrolledClasses || []).some(cid => cid.toString() === classroom._id.toString());
+      if (!canViewCall) {
+        setCurrentCall(null);
+        return;
+      }
+
+      try {
+        const resp = await api.get(`/classrooms/${classroom._id}/call`);
+        setCurrentCall(resp.data || null);
+      } catch (err) {
+        // 404 -> no call yet, 403 -> not allowed, treat as no call for labeling
+        setCurrentCall(null);
+      }
+    };
+    fetchCall();
+  }, [classroom, user]);
+
   const fetchClassroom = async () => {
     try {
       // Also populate assignments to display them
@@ -192,10 +223,32 @@ const ClassroomDetail = () => {
 
   const handleStartZoom = async () => {
     try {
-      const response = await api.post(`/zoom/create-meeting/${id}`);
-      alert(`Zoom Meeting Created!\nMeeting ID: ${response.data.meetingId}\nPassword: ${response.data.password}\n\nJoin URL: ${response.data.joinUrl}`);
+      // Start or get current Google Meet link for this class
+      const response = await api.post(`/classrooms/${id}/call/start`);
+      const link = response.data.link;
+      if (link) {
+        const w = window.open(link, '_blank');
+        if (w) w.opener = null;
+      } else {
+        alert('Could not create meeting link');
+      }
     } catch (error) {
-      alert(error.response?.data?.message || 'Error creating Zoom meeting');
+      alert(error.response?.data?.message || 'Error starting meeting');
+    }
+  };
+
+  const handleJoinCall = async () => {
+    try {
+      const resp = await api.get(`/classrooms/${id}/call`);
+      const link = resp.data.link;
+      if (link) {
+        const w = window.open(link, '_blank');
+        if (w) w.opener = null;
+      } else {
+        alert('No active meeting found');
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error joining meeting');
     }
   };
 
@@ -508,13 +561,46 @@ const ClassroomDetail = () => {
             )}
             {(isEnrolled || canEdit) && (
               <>
-                <button
-                  onClick={handleStartZoom}
-                  className="flex items-center space-x-2 px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
-                >
-                  <Video className="w-5 h-5" />
-                  <span>Start Zoom</span>
-                </button>
+                {/* Determine starter permission clearly */}
+                {(() => {
+                  const teacherIdStr = classroom.teacherId?._id ? classroom.teacherId._id.toString() : (classroom.teacherId ? classroom.teacherId.toString() : null);
+                  const isTeacherOwner = teacherIdStr && user._id.toString() === teacherIdStr;
+                  const isRoot = user.role === 'root_admin';
+                  // Determine school admin by comparing classroom.schoolId.adminId with current user
+                  const classAdminId = classroom.schoolId?.adminId?._id ? classroom.schoolId.adminId._id.toString() : (classroom.schoolId?.adminId ? classroom.schoolId.adminId.toString() : null);
+                  const isSchoolAdminOfClass = user.role === 'school_admin' && classAdminId && user._id && classAdminId === user._id.toString();
+                  const canStartCall = isTeacherOwner || isRoot || isSchoolAdminOfClass;
+
+                  if (canStartCall) {
+                    // For starters show a single CTA: 'Start Meeting' when no current call exists, otherwise 'Join Meeting'
+                    const label = currentCall && currentCall.link ? 'Join Meeting' : 'Start Meeting';
+                    return (
+                      <button
+                        onClick={handleStartZoom}
+                        className="flex items-center space-x-2 px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+                      >
+                        <Video className="w-5 h-5" />
+                        <span>{label}</span>
+                      </button>
+                    );
+                  }
+
+                  // Not a starter: fall back to join button for enrolled students
+                  if (isEnrolled) {
+                    return (
+                      <button
+                        onClick={handleJoinCall}
+                        className="flex items-center space-x-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                      >
+                        <Video className="w-5 h-5" />
+                        <span>Join Meeting</span>
+                      </button>
+                    );
+                  }
+
+                  return null;
+                })()}
+
                 {
                   (() => {
                     const isTeacherUser = (user?.role === 'teacher' || user?.role === 'personal_teacher') && classroom?.teacherId?._id === user?._id;
