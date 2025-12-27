@@ -4,6 +4,7 @@ import { Video, Edit, Plus, Calendar, Users, Book, DollarSign, X, UserPlus, File
 import Layout from '../components/Layout';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { formatAmount } from '../utils/currency';
 import CreateAssignmentModal from '../components/CreateAssignmentModal';
 import GradeAssignmentModal from '../components/GradeAssignmentModal';
 import SubmitAssignmentModal from '../components/SubmitAssignmentModal';
@@ -450,7 +451,7 @@ const ClassroomDetail = () => {
                   )}
             {classroom.isPaid && classroom.pricing?.amount > 0 ? (
               <span className="bg-green-100 text-green-800 px-4 py-2 rounded-full font-semibold">
-                ${classroom.pricing?.amount || 0}
+                {formatAmount(classroom.pricing?.amount || 0, classroom.pricing?.currency || 'NGN')}
               </span>
             ) : (
               <span className="bg-blue-100 text-blue-800 px-4 py-2 rounded-full font-semibold">
@@ -497,7 +498,7 @@ const ClassroomDetail = () => {
                 onClick={handleEnroll}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold"
               >
-                {classroom.isPaid ? `Enroll - $${classroom.pricing?.amount || 0}` : 'Enroll (Free)'}
+                {classroom.isPaid ? `Enroll - ${formatAmount(classroom.pricing?.amount || 0, classroom.pricing?.currency || 'NGN')}` : 'Enroll (Free)'}
               </button>
             )}
             {!isEnrolled && user?.role === 'student' && !classroom.published && (

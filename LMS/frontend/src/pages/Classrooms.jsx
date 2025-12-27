@@ -4,6 +4,7 @@ import { Plus, Calendar, Users, Book, Video, Edit, Eye, EyeOff, Search } from 'l
 import Layout from '../components/Layout';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { formatAmount } from '../utils/currency';
 
 const Classrooms = () => {
   const { user } = useAuth();
@@ -277,10 +278,10 @@ const Classrooms = () => {
                   </div>
                   <div className="flex flex-col items-end space-y-1">
                     {classroom.isPaid && classroom.pricing?.amount > 0 ? (
-                      <span className="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-semibold">
-                        ${classroom.pricing?.amount || 0}
-                      </span>
-                    ) : (
+                        <span className="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-semibold">
+                          {formatAmount(classroom.pricing?.amount || 0, classroom.pricing?.currency || 'NGN')}
+                        </span>
+                      ) : (
                       <span className="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-semibold">
                         Free
                       </span>
@@ -542,7 +543,7 @@ const Classrooms = () => {
               )}
               {formData.isPaid && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Price (₦)</label>
                   <input
                     type="number"
                     value={formData.pricing.amount}

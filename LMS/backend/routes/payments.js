@@ -10,6 +10,60 @@ const crypto = require('crypto');
 const { auth } = require('../middleware/auth');
 const router = express.Router();
 
+// Helper: notify recipients (in-app + internal email notify)
+async function notifyRecipients({ payerUser, payment, classroom }) {
+  try {
+    const recipients = new Set();
+
+    // classroom teacher (personal teacher)
+    if (classroom && classroom.teacherId) recipients.add(String(classroom.teacherId));
+
+    // school admin
+    if (classroom && classroom.schoolId) {
+      const school = await require('../models/School').findById(classroom.schoolId);
+      if (school && school.adminId) recipients.add(String(school.adminId));
+    }
+
+    // root admins (all)
+    const rootAdmins = await User.find({ role: 'root_admin' }).select('_id');
+    rootAdmins.forEach(r => recipients.add(String(r._id)));
+
+    const recipientIds = Array.from(recipients).filter(id => id && payerUser && String(id) !== String(payerUser._id));
+
+    // Create in-app notification and trigger internal email notifier per recipient
+    for (const rid of recipientIds) {
+      try {
+        await Notification.create({
+          userId: rid,
+          message: `Payment of ${payment.amount} ${payment.currency || ''} for ${payment.type.replace('_', ' ')} received from ${payerUser?.email || payerUser?.name || 'a user'}.`,
+          type: 'payment_received',
+          entityId: payment._id,
+          entityRef: 'Payment'
+        });
+      } catch (e) {
+        console.error('Error creating in-app notification for recipient', rid, e.message);
+      }
+
+      // best-effort internal email/notification endpoint
+      try {
+        await axios.post(`http://localhost:${process.env.PORT || 5000}/api/notifications/payment-notification`, {
+          userId: rid,
+          type: payment.type,
+          amount: payment.amount,
+          status: payment.status,
+          payer: { id: payerUser?._id, email: payerUser?.email, name: payerUser?.name },
+          receiver: rid,
+          classroomId: payment.classroomId
+        }, { headers: { 'x-internal-api-key': process.env.INTERNAL_API_KEY } });
+      } catch (e) {
+        console.error('Error sending internal payment notification to', rid, e.message);
+      }
+    }
+  } catch (err) {
+    console.error('notifyRecipients error', err.message);
+  }
+}
+
 // Paystack integration
 // Initiate a Paystack transaction and return authorization URL
 router.post('/paystack/initiate', auth, async (req, res) => {
@@ -101,30 +155,22 @@ router.get('/paystack/verify', auth, async (req, res) => {
 
         await User.findByIdAndUpdate(req.user._id, { $addToSet: { enrolledClasses: payment.classroomId } });
       }
-    }
-
-    // notify
-    try {
-      await axios.post(`http://localhost:${process.env.PORT || 5000}/api/notifications/payment-notification`, {
-        userId: req.user._id,
-        type: payment.type,
-        amount: payment.amount,
-        status: payment.status
-      }, { headers: { 'x-internal-api-key': process.env.INTERNAL_API_KEY } });
-    } catch (notificationError) {
-      console.error('Error sending payment notification:', notificationError.message);
-    }
-
-    try {
-      await Notification.create({
-        userId: req.user._id,
-        message: `Your payment of ${payment.amount} ${currency} for ${payment.type.replace('_', ' ')} was successful.`,
-        type: 'payment_success',
-        entityId: payment._id,
-        entityRef: 'Payment',
-      });
-    } catch (inAppNotifError) {
-      console.error('Error creating in-app notification for payment:', inAppNotifError.message);
+      // notify classroom stakeholders (teacher, school admin, root admins)
+      try {
+        const payerUser = await User.findById(req.user._id).select('email name _id');
+        const classroom = await Classroom.findById(payment.classroomId);
+        await notifyRecipients({ payerUser, payment, classroom });
+      } catch (notifyErr) {
+        console.error('Error notifying recipients after Paystack verify:', notifyErr.message);
+      }
+    } else {
+      // Non-class payments: still notify root admins
+      try {
+        const payerUser = await User.findById(req.user._id).select('email name _id');
+        await notifyRecipients({ payerUser, payment, classroom: null });
+      } catch (notifyErr) {
+        console.error('Error notifying recipients after Paystack verify (non-class):', notifyErr.message);
+      }
     }
 
     return res.json({ message: 'Payment verified and processed', payment });
@@ -199,31 +245,25 @@ router.post('/paystack/webhook', express.raw({ type: 'application/json' }), asyn
 
           await User.findByIdAndUpdate(userId, { $addToSet: { enrolledClasses: payment.classroomId } });
         }
+
+        // Notify stakeholders about this enrollment/payment
+        try {
+          const payerUser = await User.findById(userId).select('email name _id');
+          await notifyRecipients({ payerUser, payment, classroom });
+        } catch (notifyErr) {
+          console.error('Error notifying recipients from webhook:', notifyErr.message);
+        }
+      } else {
+        // Non-class or missing metadata: still notify root admins
+        try {
+          const payerUser = metadata.userId ? await User.findById(metadata.userId).select('email name _id') : null;
+          await notifyRecipients({ payerUser, payment, classroom: null });
+        } catch (notifyErr) {
+          console.error('Error notifying recipients from webhook (non-class):', notifyErr.message);
+        }
       }
     } catch (enrollErr) {
       console.error('Error enrolling user from Paystack webhook:', enrollErr.message);
-    }
-
-    // Send notification (best-effort) if metadata.userId present
-    try {
-      if (metadata.userId) {
-        await axios.post(`http://localhost:${process.env.PORT || 5000}/api/notifications/payment-notification`, {
-          userId: metadata.userId,
-          type: payment.type,
-          amount: payment.amount,
-          status: payment.status
-        }, { headers: { 'x-internal-api-key': process.env.INTERNAL_API_KEY } });
-
-        await Notification.create({
-          userId: metadata.userId,
-          message: `Your payment of ${payment.amount} ${currency} for ${payment.type.replace('_', ' ')} was successful.`,
-          type: 'payment_success',
-          entityId: payment._id,
-          entityRef: 'Payment'
-        });
-      }
-    } catch (notifErr) {
-      console.error('Paystack webhook notification error:', notifErr.message);
     }
 
     return res.status(200).json({ status: 'processed' });
@@ -300,29 +340,13 @@ router.post('/confirm', auth, async (req, res) => {
       }
     }
 
-    // Trigger payment notification (email)
+    // Notify relevant parties (teacher, school admin, root admins) when payment saved
     try {
-      await axios.post(`http://localhost:${process.env.PORT || 5000}/api/notifications/payment-notification`, {
-        userId: req.user._id,
-        type: payment.type,
-        amount: payment.amount,
-        status: payment.status
-      }, { headers: { 'x-internal-api-key': process.env.INTERNAL_API_KEY } }); // Added headers
-    } catch (notificationError) {
-      console.error('Error sending payment notification:', notificationError.message);
-    }
-
-    // Create in-app notification for successful payment
-    try {
-      await Notification.create({
-        userId: req.user._id,
-        message: `Your payment of $${payment.amount} for ${payment.type.replace('_', ' ')} was successful.`,
-        type: 'payment_success',
-        entityId: payment._id,
-        entityRef: 'Payment',
-      });
-    } catch (inAppNotifError) {
-      console.error('Error creating in-app notification for payment:', inAppNotifError.message);
+      const payerUser = await User.findById(req.user._id).select('email name _id');
+      const classroom = classroomId ? await Classroom.findById(classroomId) : null;
+      await notifyRecipients({ payerUser, payment, classroom });
+    } catch (notifyErr) {
+      console.error('Error notifying recipients after Stripe confirm:', notifyErr.message);
     }
 
     res.json({ message: 'Payment confirmed and enrollment completed', payment });
@@ -339,6 +363,13 @@ router.get('/history', auth, async (req, res) => {
     // Root Admin and School Admin can see all payments
     if (req.user.role === 'root_admin' || req.user.role === 'school_admin') {
       query = {};
+    }
+
+    // Personal Teacher: show payments related to classes they own PLUS their own payments
+    if (req.user.role === 'personal_teacher') {
+      const classes = await Classroom.find({ teacherId: req.user._id }).select('_id');
+      const classIds = classes.map(c => c._id);
+      query = { $or: [{ userId: req.user._id }, { classroomId: { $in: classIds } }] };
     }
 
     const payments = await Payment.find(query)

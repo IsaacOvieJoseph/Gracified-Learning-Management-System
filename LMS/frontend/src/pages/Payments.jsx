@@ -4,6 +4,7 @@ import { DollarSign, CheckCircle, XCircle, Clock } from 'lucide-react';
 import Layout from '../components/Layout';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { formatAmount } from '../utils/currency';
 
 const Payments = () => {
   const { user } = useAuth();
@@ -206,7 +207,7 @@ const Payments = () => {
             <p className="text-sm text-gray-600 mb-4">You're about to enroll in <strong>{classroomForPayment.name}</strong>.</p>
             <div className="mb-4">
               <div className="text-sm text-gray-500">Amount</div>
-              <div className="text-2xl font-semibold">${classroomForPayment.pricing?.amount || 0}</div>
+              <div className="text-2xl font-semibold">{formatAmount(classroomForPayment.pricing?.amount || 0, classroomForPayment.pricing?.currency || 'NGN')}</div>
             </div>
             <div className="flex justify-end gap-3">
               <button className="px-4 py-2 border rounded" onClick={() => { setShowPaymentModal(false); setClassroomForPayment(null); window.history.replaceState({}, document.title, '/payments'); }}>Cancel</button>
@@ -226,19 +227,23 @@ const Payments = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class/Topic</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              </tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date / Time</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class/Topic</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {payments.length > 0 ? (
                 payments.map((payment) => (
                   <tr key={payment._id}>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      {new Date(payment.paymentDate).toLocaleDateString()}
+                      {new Date(payment.paymentDate).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {payment.userId?.name || payment.userId?.email || 'Unknown'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       {payment.type.replace('_', ' ')}
@@ -247,7 +252,7 @@ const Payments = () => {
                       {payment.classroomId?.name || payment.topicId?.name || 'N/A'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      ${payment.amount}
+                      {formatAmount(payment.amount, payment.currency || 'NGN')}
                     </td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
@@ -257,9 +262,9 @@ const Payments = () => {
                     </td>
                   </tr>
                 ))
-              ) : (
+                ) : (
                 <tr>
-                  <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
                     No payment history yet
                   </td>
                 </tr>
