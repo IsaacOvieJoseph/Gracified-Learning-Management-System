@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Video, Edit, Plus, Calendar, Users, Book, DollarSign, X, UserPlus, FileText, CheckCircle, Send, ChevronDown, ChevronUp } from 'lucide-react'; // Added FileText, CheckCircle, Send icons
 import Layout from '../components/Layout';
@@ -9,7 +10,7 @@ import CreateAssignmentModal from '../components/CreateAssignmentModal';
 import GradeAssignmentModal from '../components/GradeAssignmentModal';
 import SubmitAssignmentModal from '../components/SubmitAssignmentModal';
 // import SubscriptionBlockModal from '../components/SubscriptionBlockModal';
-  // Subscription block modal state (REMOVED)
+// Subscription block modal state (REMOVED)
 
 const ClassroomDetail = () => {
   const { id } = useParams();
@@ -22,43 +23,44 @@ const ClassroomDetail = () => {
   const [showTopicModal, setShowTopicModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', description: '', capacity: 30, pricingType: 'per_class', pricingAmount: 0 });
-    // Open edit modal and prefill form
-    const handleOpenEdit = () => {
-      setEditForm({
-        name: classroom.name || '',
-        description: classroom.description || '',
-        capacity: classroom.capacity || 30,
-        pricingType: classroom.pricing?.type || 'per_class',
-        pricingAmount: classroom.pricing?.amount || 0,
-        teacherId: classroom.teacherId?._id || ''
-      });
-      if ((user?.role === 'root_admin' || user?.role === 'school_admin') && classroom.schoolId && classroom.teacherId?.role !== 'personal_teacher') {
-        fetchAvailableTeachers();
-      }
-      setShowEditModal(true);
-    };
+  // Open edit modal and prefill form
+  const handleOpenEdit = () => {
+    setEditForm({
+      name: classroom.name || '',
+      description: classroom.description || '',
+      capacity: classroom.capacity || 30,
+      pricingType: classroom.pricing?.type || 'per_class',
+      pricingAmount: classroom.pricing?.amount || 0,
+      teacherId: classroom.teacherId?._id || ''
+    });
+    if ((user?.role === 'root_admin' || user?.role === 'school_admin') && classroom.schoolId && classroom.teacherId?.role !== 'personal_teacher') {
+      fetchAvailableTeachers();
+    }
+    setShowEditModal(true);
+  };
 
-    // Handle edit form submit
-    const handleEditClassroom = async (e) => {
-      e.preventDefault();
-      try {
-        const updateData = {
-          name: editForm.name,
-          description: editForm.description,
-          capacity: editForm.capacity,
-          pricing: { type: editForm.pricingType, amount: editForm.pricingAmount }
-        };
-        // Only allow teacher change if permitted
-        if ((user?.role === 'root_admin' || user?.role === 'school_admin') && classroom.schoolId && classroom.teacherId?.role !== 'personal_teacher' && editForm.teacherId && editForm.teacherId !== classroom.teacherId?._id) {
-          updateData.teacherId = editForm.teacherId;
-        }
-        await api.put(`/classrooms/${id}`, updateData);
-        setShowEditModal(false);
-        fetchClassroom();
-      } catch (error) {
-        alert(error.response?.data?.message || 'Error updating classroom');
+  // Handle edit form submit
+  const handleEditClassroom = async (e) => {
+    e.preventDefault();
+    try {
+      const updateData = {
+        name: editForm.name,
+        description: editForm.description,
+        capacity: editForm.capacity,
+        pricing: { type: editForm.pricingType, amount: editForm.pricingAmount }
+      };
+      // Only allow teacher change if permitted
+      if ((user?.role === 'root_admin' || user?.role === 'school_admin') && classroom.schoolId && classroom.teacherId?.role !== 'personal_teacher' && editForm.teacherId && editForm.teacherId !== classroom.teacherId?._id) {
+        updateData.teacherId = editForm.teacherId;
       }
-    };
+      await api.put(`/classrooms/${id}`, updateData);
+      setShowEditModal(false);
+      toast.success('Classroom updated successfully');
+      fetchClassroom();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error updating classroom');
+    }
+  };
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [showChangeTeacherModal, setShowChangeTeacherModal] = useState(false);
   const [availableStudents, setAvailableStudents] = useState([]);
@@ -66,7 +68,7 @@ const ClassroomDetail = () => {
   const [topicForm, setTopicForm] = useState({ name: '', description: '', order: 0 });
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
-  
+
   // New states for Assignment Management
   const [showCreateAssignmentModal, setShowCreateAssignmentModal] = useState(false);
   const [availableTopicsForAssignment, setAvailableTopicsForAssignment] = useState([]); // For topic dropdown in create assignment modal
@@ -125,9 +127,11 @@ const ClassroomDetail = () => {
       const teacherIdStr = classroom.teacherId?._id ? classroom.teacherId._id.toString() : (classroom.teacherId ? classroom.teacherId.toString() : null);
       const isTeacherOwner = teacherIdStr && user._id.toString() === teacherIdStr;
       const isRoot = user.role === 'root_admin';
-      // Determine if the current user is the admin of the classroom's school (classroom.schoolId.adminId populated)
-      const classAdminId = classroom.schoolId?.adminId?._id ? classroom.schoolId.adminId._id.toString() : (classroom.schoolId?.adminId ? classroom.schoolId.adminId.toString() : null);
-      const isSchoolAdminOfClass = user.role === 'school_admin' && classAdminId && user._id && classAdminId === user._id.toString();
+      const classroomSchoolIds = (Array.isArray(classroom.schoolId) ? classroom.schoolId : [classroom.schoolId]).filter(Boolean);
+      const isSchoolAdminOfClass = user.role === 'school_admin' && classroomSchoolIds.some(s => {
+        const adminId = s?.adminId?._id || s?.adminId;
+        return adminId?.toString() === user?._id?.toString();
+      });
 
       const canViewCall = isTeacherOwner || isRoot || isSchoolAdminOfClass || (classroom.students || []).some(s => (s._id ? s._id.toString() : s.toString()) === user._id.toString()) || (user.enrolledClasses || []).some(cid => cid.toString() === classroom._id.toString());
       if (!canViewCall) {
@@ -175,11 +179,11 @@ const ClassroomDetail = () => {
         navigate(`/payments?classroomId=${id}`);
       } else {
         await api.post(`/classrooms/${id}/enroll`);
-        alert('Enrolled successfully!');
+        toast.success('Enrolled successfully!');
         fetchClassroom();
       }
     } catch (error) {
-      alert(error.response?.data?.message || 'Error enrolling');
+      toast.error(error.response?.data?.message || 'Error enrolling');
     }
   };
 
@@ -190,11 +194,12 @@ const ClassroomDetail = () => {
         ...topicForm,
         classroomId: id
       });
+      toast.success('Topic created successfully');
       setShowTopicModal(false);
       setTopicForm({ name: '', description: '', order: 0 });
       fetchClassroom();
     } catch (error) {
-      alert(error.response?.data?.message || 'Error creating topic');
+      toast.error(error.response?.data?.message || 'Error creating topic');
     }
   };
 
@@ -208,9 +213,10 @@ const ClassroomDetail = () => {
       await api.post(`/assignments/${assignmentId}/submit`, { answers });
       setShowSubmitAssignmentModal(false);
       setAssignmentToSubmit(null);
+      toast.success('Assignment submitted successfully');
       fetchClassroom(); // Refresh classroom to update submission status
     } catch (error) {
-      alert(error.response?.data?.message || 'Error submitting assignment');
+      toast.error(error.response?.data?.message || 'Error submitting assignment');
     }
   };
 
@@ -230,10 +236,10 @@ const ClassroomDetail = () => {
         const w = window.open(link, '_blank');
         if (w) w.opener = null;
       } else {
-        alert('Could not create meeting link');
+        toast.error('Could not create meeting link');
       }
     } catch (error) {
-      alert(error.response?.data?.message || 'Error starting meeting');
+      toast.error(error.response?.data?.message || 'Error starting meeting');
     }
   };
 
@@ -245,10 +251,10 @@ const ClassroomDetail = () => {
         const w = window.open(link, '_blank');
         if (w) w.opener = null;
       } else {
-        alert('No active meeting found');
+        toast.error('No active meeting found');
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Error joining meeting');
+      toast.error(err.response?.data?.message || 'Error joining meeting');
     }
   };
 
@@ -275,7 +281,7 @@ const ClassroomDetail = () => {
       const response = await api.get('/users');
       // Filter to get only students (backend may have already filtered by schoolId for school admins)
       let students = response.data.users.filter(u => u.role === 'student');
-      
+
       // Filter out already enrolled students
       if (classroom) {
         const enrolledIds = classroom.students?.map(s => (typeof s === 'object' ? s._id?.toString() : s?.toString())) || [];
@@ -292,7 +298,7 @@ const ClassroomDetail = () => {
   const fetchAvailableTeachers = async () => {
     try {
       const response = await api.get('/users');
-      const teachers = response.data.users.filter(u => 
+      const teachers = response.data.users.filter(u =>
         ['teacher', 'personal_teacher'].includes(u.role)
       );
       setAvailableTeachers(teachers);
@@ -305,26 +311,26 @@ const ClassroomDetail = () => {
     e.preventDefault();
     try {
       await api.post(`/classrooms/${id}/students`, { studentId: selectedStudentId });
-      alert('Student added successfully!');
+      toast.success('Student added successfully!');
       setShowAddStudentModal(false);
       setSelectedStudentId(''); // Reset selected student ID
       fetchClassroom();
       fetchAvailableStudents();
     } catch (error) {
-      alert(error.response?.data?.message || 'Error adding student');
+      toast.error(error.response?.data?.message || 'Error adding student');
     }
   };
 
   const handleRemoveStudent = async (studentId) => {
     if (!window.confirm('Are you sure you want to remove this student?')) return;
-    
+
     try {
       await api.delete(`/classrooms/${id}/students/${studentId}`);
-      alert('Student removed successfully!');
+      toast.success('Student removed successfully!');
       fetchClassroom();
       fetchAvailableStudents();
     } catch (error) {
-      alert(error.response?.data?.message || 'Error removing student');
+      toast.error(error.response?.data?.message || 'Error removing student');
     }
   };
 
@@ -332,46 +338,52 @@ const ClassroomDetail = () => {
     e.preventDefault();
     try {
       await api.put(`/classrooms/${id}/teacher`, { teacherId: selectedTeacherId });
-      alert('Teacher updated successfully!');
+      toast.success('Teacher updated successfully!');
       setShowChangeTeacherModal(false);
       setSelectedTeacherId('');
       fetchClassroom();
     } catch (error) {
-      alert(error.response?.data?.message || 'Error changing teacher');
+      toast.error(error.response?.data?.message || 'Error changing teacher');
     }
   };
 
   const isEnrolled = classroom?.students?.some(s => s._id === user?._id) ||
     user?.enrolledClasses?.includes(id);
-  
+
+  // Can manage school access
+  const classroomSchoolIds = (Array.isArray(classroom?.schoolId) ? classroom.schoolId : [classroom?.schoolId]).filter(Boolean);
+  const isSchoolAdminOfClass = user?.role === 'school_admin' && classroomSchoolIds.some(s => {
+    const adminId = s?.adminId?._id || s?.adminId;
+    return adminId?.toString() === user?._id?.toString();
+  });
+
   // Unpublished classes can be edited by teacher, personal teacher, school admin, and root admin
   // Published classes can only be edited by their teacher or admins
-  const canEdit = 
+  const canEdit =
     user?.role === 'root_admin' ||
-    user?.role === 'school_admin' ||
+    isSchoolAdminOfClass ||
     (user?.role === 'teacher' && classroom?.teacherId?._id === user?._id) ||
     (user?.role === 'personal_teacher' && classroom?.teacherId?._id === user?._id) ||
-    (!classroom?.published && ['root_admin', 'school_admin', 'teacher', 'personal_teacher'].includes(user?.role));
+    (!classroom?.published && (user?.role === 'root_admin' || isSchoolAdminOfClass || (classroom?.teacherId?._id === user?._id)));
 
-  // Can manage students (add/remove)
-  const canManageStudents = 
+  const canManageStudents =
     user?.role === 'root_admin' ||
-    (user?.role === 'school_admin' && classroom?.schoolId?.toString() === user?.schoolId?.toString()) ||
+    isSchoolAdminOfClass ||
     (user?.role === 'personal_teacher' && classroom?.teacherId?._id === user?._id);
 
   // Can change teacher (root admin only, for non-personal teacher classes)
-  const canChangeTeacher = 
-    user?.role === 'root_admin' && 
-    classroom?.schoolId && 
+  const canChangeTeacher =
+    user?.role === 'root_admin' &&
+    classroom?.schoolId &&
     classroom?.teacherId?.role !== 'personal_teacher';
 
   // Can view students (teachers can see their students)
-  const canViewStudents = 
+  const canViewStudents =
     user?.role === 'teacher' && classroom?.teacherId?._id === user?._id ||
     user?.role === 'personal_teacher' && classroom?.teacherId?._id === user?._id ||
     canManageStudents ||
     user?.role === 'root_admin';
-  
+
   // Can create assignments (same as canEdit for now)
   const canCreateAssignment = canEdit;
   // Can grade assignments (same as canEdit for now)
@@ -407,101 +419,101 @@ const ClassroomDetail = () => {
                 <span>Edit</span>
               </button>
             )}
-                  {/* Edit Classroom Modal */}
-                  {showEditModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                      <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
-                        <h3 className="text-xl font-bold mb-4">Edit Classroom</h3>
-                        <form onSubmit={handleEditClassroom} className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                            <input
-                              type="text"
-                              value={editForm.name}
-                              onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                              className="w-full px-4 py-2 border rounded-lg"
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                            <textarea
-                              value={editForm.description}
-                              onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-                              className="w-full px-4 py-2 border rounded-lg"
-                              rows="3"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
-                            <input
-                              type="number"
-                              value={editForm.capacity}
-                              onChange={e => setEditForm({ ...editForm, capacity: parseInt(e.target.value) })}
-                              className="w-full px-4 py-2 border rounded-lg"
-                              min="1"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Pricing Type</label>
-                            <select
-                              value={editForm.pricingType}
-                              onChange={e => setEditForm({ ...editForm, pricingType: e.target.value })}
-                              className="w-full px-4 py-2 border rounded-lg"
-                            >
-                              <option value="per_class">Per Class</option>
-                              <option value="per_topic">Per Topic</option>
-                              <option value="per_subject">Per Subject</option>
-                              <option value="free">Free</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Pricing Amount</label>
-                            <input
-                              type="number"
-                              value={editForm.pricingAmount}
-                              onChange={e => setEditForm({ ...editForm, pricingAmount: parseFloat(e.target.value) })}
-                              className="w-full px-4 py-2 border rounded-lg"
-                              min="0"
-                              step="0.01"
-                              disabled={editForm.pricingType === 'free'}
-                            />
-                          </div>
-                          {/* Only show teacher select for admins if allowed */}
-                          {(user?.role === 'root_admin' || user?.role === 'school_admin') && classroom.schoolId && classroom.teacherId?.role !== 'personal_teacher' && (
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Teacher</label>
-                              <select
-                                value={editForm.teacherId}
-                                onChange={e => setEditForm({ ...editForm, teacherId: e.target.value })}
-                                className="w-full px-4 py-2 border rounded-lg"
-                              >
-                                <option value="">Select a teacher</option>
-                                {availableTeachers.map(teacher => (
-                                  <option key={teacher._id} value={teacher._id}>{teacher.name} ({teacher.email})</option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-                          <div className="flex space-x-3">
-                            <button
-                              type="button"
-                              onClick={() => setShowEditModal(false)}
-                              className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="submit"
-                              className="flex-1 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600"
-                            >
-                              Save Changes
-                            </button>
-                          </div>
-                        </form>
-                      </div>
+            {/* Edit Classroom Modal */}
+            {showEditModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 overflow-y-auto max-h-[90vh]">
+                  <h3 className="text-xl font-bold mb-4">Edit Classroom</h3>
+                  <form onSubmit={handleEditClassroom} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                      <input
+                        type="text"
+                        value={editForm.name}
+                        onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg"
+                        required
+                      />
                     </div>
-                  )}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                      <textarea
+                        value={editForm.description}
+                        onChange={e => setEditForm({ ...editForm, description: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg"
+                        rows="3"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
+                      <input
+                        type="number"
+                        value={editForm.capacity}
+                        onChange={e => setEditForm({ ...editForm, capacity: parseInt(e.target.value) })}
+                        className="w-full px-4 py-2 border rounded-lg"
+                        min="1"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Pricing Type</label>
+                      <select
+                        value={editForm.pricingType}
+                        onChange={e => setEditForm({ ...editForm, pricingType: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg"
+                      >
+                        <option value="per_class">Per Class</option>
+                        <option value="per_topic">Per Topic</option>
+                        <option value="per_subject">Per Subject</option>
+                        <option value="free">Free</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Pricing Amount</label>
+                      <input
+                        type="number"
+                        value={editForm.pricingAmount}
+                        onChange={e => setEditForm({ ...editForm, pricingAmount: parseFloat(e.target.value) })}
+                        className="w-full px-4 py-2 border rounded-lg"
+                        min="0"
+                        step="0.01"
+                        disabled={editForm.pricingType === 'free'}
+                      />
+                    </div>
+                    {/* Only show teacher select for admins if allowed */}
+                    {(user?.role === 'root_admin' || user?.role === 'school_admin') && classroom.schoolId && classroom.teacherId?.role !== 'personal_teacher' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Teacher</label>
+                        <select
+                          value={editForm.teacherId}
+                          onChange={e => setEditForm({ ...editForm, teacherId: e.target.value })}
+                          className="w-full px-4 py-2 border rounded-lg"
+                        >
+                          <option value="">Select a teacher</option>
+                          {availableTeachers.map(teacher => (
+                            <option key={teacher._id} value={teacher._id}>{teacher.name} ({teacher.email})</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div className="flex space-x-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowEditModal(false)}
+                        className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600"
+                      >
+                        Save Changes
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
             {classroom.isPaid && classroom.pricing?.amount > 0 ? (
               <span className="bg-green-100 text-green-800 px-4 py-2 rounded-full font-semibold">
                 {formatAmount(classroom.pricing?.amount || 0, classroom.pricing?.currency || 'NGN')}
@@ -511,11 +523,10 @@ const ClassroomDetail = () => {
                 Free
               </span>
             )}
-            {!classroom.schoolId && classroom.teacherId?.role === 'personal_teacher' && (
-              <span className="bg-purple-100 text-purple-800 px-4 py-2 rounded-full font-semibold ml-2">
-                Personal Teacher
-              </span>
-            )}
+            <span className={`px-4 py-2 rounded-full font-semibold ml-2 ${(Array.isArray(classroom.schoolId) ? classroom.schoolId.length > 0 : classroom.schoolId) ? 'bg-indigo-100 text-indigo-800' : 'bg-purple-100 text-purple-800'}`}>
+              {(Array.isArray(classroom.schoolId) ? (classroom.schoolId[0]?.name || classroom.schoolId[0]) : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}
+              {Array.isArray(classroom.schoolId) && classroom.schoolId.length > 1 && ` +${classroom.schoolId.length - 1}`}
+            </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -566,9 +577,11 @@ const ClassroomDetail = () => {
                   const teacherIdStr = classroom.teacherId?._id ? classroom.teacherId._id.toString() : (classroom.teacherId ? classroom.teacherId.toString() : null);
                   const isTeacherOwner = teacherIdStr && user._id.toString() === teacherIdStr;
                   const isRoot = user.role === 'root_admin';
-                  // Determine school admin by comparing classroom.schoolId.adminId with current user
-                  const classAdminId = classroom.schoolId?.adminId?._id ? classroom.schoolId.adminId._id.toString() : (classroom.schoolId?.adminId ? classroom.schoolId.adminId.toString() : null);
-                  const isSchoolAdminOfClass = user.role === 'school_admin' && classAdminId && user._id && classAdminId === user._id.toString();
+                  const classroomSchoolIdsForMeeting = (Array.isArray(classroom.schoolId) ? classroom.schoolId : [classroom.schoolId]).filter(Boolean);
+                  const isSchoolAdminOfClass = user.role === 'school_admin' && classroomSchoolIdsForMeeting.some(s => {
+                    const adminId = s?.adminId?._id || s?.adminId;
+                    return adminId?.toString() === user?._id?.toString();
+                  });
                   const canStartCall = isTeacherOwner || isRoot || isSchoolAdminOfClass;
 
                   if (canStartCall) {
@@ -693,7 +706,7 @@ const ClassroomDetail = () => {
 
                 return (
                   <div key={assignment._id} className="bg-white rounded-lg shadow-md overflow-hidden">
-                    <div 
+                    <div
                       className="flex justify-between items-start p-6 cursor-pointer hover:bg-gray-50 transition"
                       onClick={toggleAssignmentExpanded}
                     >
@@ -782,8 +795,8 @@ const ClassroomDetail = () => {
                                     const questionGrade = submission.questionScores?.find(qs => qs.questionIndex === qIndex);
                                     return (
                                       <li key={qIndex}>
-                                        <strong>Q{qIndex + 1}:</strong> {q.questionText}<br/>
-                                        Your Answer: <span className="whitespace-pre-wrap">{submission.answers[qIndex]}</span><br/>
+                                        <strong>Q{qIndex + 1}:</strong> {q.questionText}<br />
+                                        Your Answer: <span className="whitespace-pre-wrap">{submission.answers[qIndex]}</span><br />
                                         {questionGrade && (
                                           <span className="ml-2 text-sm font-medium text-green-600">
                                             Score: {questionGrade.score}/{q.maxScore}
@@ -799,7 +812,7 @@ const ClassroomDetail = () => {
                                 <ul className="list-disc list-inside text-gray-700">
                                   {assignment.questions.map((q, qIndex) => (
                                     <li key={qIndex}>
-                                      <strong>Q{qIndex + 1}:</strong> {q.questionText}<br/>
+                                      <strong>Q{qIndex + 1}:</strong> {q.questionText}<br />
                                       Your Answer: {submission.answers[qIndex]}
                                       {q.correctOption && (
                                         <span className={`ml-2 text-sm font-medium ${submission.answers[qIndex] === q.correctOption ? 'text-green-600' : 'text-red-600'}`}>
@@ -829,7 +842,7 @@ const ClassroomDetail = () => {
                                 <ul className="list-disc list-inside text-gray-700">
                                   {assignment.questions.map((q, qIndex) => (
                                     <li key={qIndex}>
-                                      <strong>Q{qIndex + 1}:</strong> {q.questionText}<br/>
+                                      <strong>Q{qIndex + 1}:</strong> {q.questionText}<br />
                                       Your Answer: <span className="whitespace-pre-wrap">{submission.answers[qIndex]}</span>
                                     </li>
                                   ))}
@@ -842,7 +855,7 @@ const ClassroomDetail = () => {
                                 <ul className="list-disc list-inside text-gray-700">
                                   {assignment.questions.map((q, qIndex) => (
                                     <li key={qIndex}>
-                                      <strong>Q{qIndex + 1}:</strong> {q.questionText}<br/>
+                                      <strong>Q{qIndex + 1}:</strong> {q.questionText}<br />
                                       Your Answer: {submission.answers[qIndex]}
                                     </li>
                                   ))}
@@ -853,16 +866,26 @@ const ClassroomDetail = () => {
                         )}
 
                         {user?.role === 'student' && !isSubmitted && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setAssignmentToSubmit(assignment);
-                              setShowSubmitAssignmentModal(true);
-                            }}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                          >
-                            Submit Assignment
-                          </button>
+                          (() => {
+                            const isPastDue = assignment.dueDate && new Date() > new Date(assignment.dueDate);
+                            return (
+                              <button
+                                onClick={(e) => {
+                                  if (isPastDue) return;
+                                  e.stopPropagation();
+                                  setAssignmentToSubmit(assignment);
+                                  setShowSubmitAssignmentModal(true);
+                                }}
+                                disabled={isPastDue}
+                                className={`px-4 py-2 rounded-lg transition ${isPastDue
+                                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                                  }`}
+                              >
+                                {isPastDue ? 'Deadline Passed' : 'Submit Assignment'}
+                              </button>
+                            );
+                          })()
                         )}
 
                         {/* Teacher/Admin: View and Grade Submissions */}
@@ -886,7 +909,7 @@ const ClassroomDetail = () => {
 
                                 return (
                                   <div key={sub._id} className="border rounded-lg mb-2 bg-gray-50 overflow-hidden">
-                                    <div 
+                                    <div
                                       className="flex justify-between items-center p-3 cursor-pointer hover:bg-gray-100 transition"
                                       onClick={toggleExpanded}
                                     >
@@ -1063,7 +1086,7 @@ const ClassroomDetail = () => {
       {/* Add Topic Modal */}
       {showTopicModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 overflow-y-auto max-h-[90vh]">
             <h3 className="text-xl font-bold mb-4">Add Topic</h3>
             <form onSubmit={handleCreateTopic} className="space-y-4">
               <div>
@@ -1149,7 +1172,7 @@ const ClassroomDetail = () => {
       {/* Add Student Modal */}
       {showAddStudentModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 overflow-y-auto max-h-[90vh]">
             <h3 className="text-xl font-bold mb-4">Add Student to "{classroom.name}"</h3>
             <form onSubmit={handleAddStudent} className="space-y-4">
               <div>
@@ -1192,7 +1215,7 @@ const ClassroomDetail = () => {
       {/* Change Teacher Modal */}
       {showChangeTeacherModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 overflow-y-auto max-h-[90vh]">
             <h3 className="text-xl font-bold mb-4">Change Teacher for "{classroom.name}"</h3>
             <div className="space-y-3">
               <div>

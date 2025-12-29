@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import Select from 'react-select';
 import { Plus, Edit, Trash2, Search } from 'lucide-react';
 import Layout from '../components/Layout';
@@ -39,7 +40,12 @@ const Users = () => {
     fetchUsers();
     // Listen for school selection changes from SchoolSwitcher
     const handler = (e) => {
-      // Optionally update selectedSchools if needed
+      try {
+        const newSchools = JSON.parse(localStorage.getItem('selectedSchools')) || [];
+        setSelectedSchools(newSchools);
+      } catch (err) {
+        console.error('Error parsing school selection:', err);
+      }
       fetchUsers();
     };
     window.addEventListener('schoolSelectionChanged', handler);
@@ -51,7 +57,7 @@ const Users = () => {
       setFilteredUsers(users);
     } else {
       const query = searchQuery.toLowerCase();
-      const filtered = users.filter(u => 
+      const filtered = users.filter(u =>
         u.name?.toLowerCase().includes(query) ||
         u.email?.toLowerCase().includes(query) ||
         u.role?.toLowerCase().includes(query)
@@ -95,13 +101,13 @@ const Users = () => {
       const submitData = { ...formData };
       if (user?.role === 'school_admin') {
         let schoolIdToSend = null;
-        
+
         // If 'All' is selected, assign all school IDs
         if (submitData.schoolIds && submitData.schoolIds.length > 0) {
           // Check if all schools are selected (equivalent to 'ALL')
-          const allSelected = submitData.schoolIds.length === schools.length && 
+          const allSelected = submitData.schoolIds.length === schools.length &&
             schools.every(s => submitData.schoolIds.includes(s._id));
-          
+
           if (allSelected || submitData.schoolIds.includes('ALL')) {
             // Send all school IDs as an array
             schoolIdToSend = schools.map(s => s._id);
@@ -114,33 +120,35 @@ const Users = () => {
           if (selectedSchools.length > 0) {
             schoolIdToSend = selectedSchools;
           } else {
-            alert('Please select a school from the header dropdown first');
+            toast.error('Please select a school from the header dropdown first');
             return;
           }
         }
-        
+
         // Send as schoolId (singular) to match backend expectation
         submitData.schoolId = schoolIdToSend;
         // Remove schoolIds from submitData to avoid confusion
         delete submitData.schoolIds;
       }
       await api.post('/users', submitData);
+      toast.success('User created successfully');
       setShowCreateModal(false);
       setFormData({ name: '', email: '', password: '', role: 'student', schoolIds: [] });
       fetchUsers();
     } catch (error) {
-      alert(error.response?.data?.message || 'Error creating user');
+      toast.error(error.response?.data?.message || 'Error creating user');
     }
   };
 
   const handleDelete = async (userId) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
-    
+
     try {
       await api.delete(`/users/${userId}`);
+      toast.success('User deleted successfully');
       fetchUsers();
     } catch (error) {
-      alert(error.response?.data?.message || 'Error deleting user');
+      toast.error(error.response?.data?.message || 'Error deleting user');
     }
   };
 
@@ -167,8 +175,8 @@ const Users = () => {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold text-gray-800">
-            {user?.role === 'teacher' || user?.role === 'personal_teacher' 
-              ? 'My Students' 
+            {user?.role === 'teacher' || user?.role === 'personal_teacher'
+              ? 'My Students'
               : 'User Management'}
           </h2>
           {['root_admin', 'school_admin'].includes(user?.role) && (
@@ -177,10 +185,10 @@ const Users = () => {
                 // Reset form and sync with selectedSchools when opening modal
                 const currentSelected = JSON.parse(localStorage.getItem('selectedSchools') || '[]');
                 if (user?.role === 'school_admin' && currentSelected.length > 0) {
-                  setFormData({ 
-                    name: '', 
-                    email: '', 
-                    password: '', 
+                  setFormData({
+                    name: '',
+                    email: '',
+                    password: '',
                     role: 'student',
                     schoolIds: currentSelected // Pre-populate with selected school
                   });
@@ -270,8 +278,8 @@ const Users = () => {
               {searchQuery.trim() !== ''
                 ? 'No users found matching your search'
                 : user?.role === 'teacher' || user?.role === 'personal_teacher'
-                ? 'No students enrolled in your classes yet'
-                : 'No users found'}
+                  ? 'No students enrolled in your classes yet'
+                  : 'No users found'}
             </p>
           </div>
         )}
@@ -279,7 +287,7 @@ const Users = () => {
 
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 overflow-y-auto" style={{ maxHeight: '90vh' }}>
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 overflow-y-auto max-h-[90vh]">
             <h3 className="text-xl font-bold mb-4">Create User</h3>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
@@ -340,18 +348,18 @@ const Users = () => {
                     options={[{ value: 'ALL', label: 'All' }, ...schools.map(s => ({ value: s._id, label: s.name }))]}
                     value={formData.schoolIds && formData.schoolIds.length > 0
                       ? (formData.schoolIds.length === schools.length
-                          ? [{ value: 'ALL', label: 'All' }]
-                          : formData.schoolIds.map(id => {
-                              if (id === 'ALL') return { value: 'ALL', label: 'All' };
-                              const school = schools.find(s => s._id === id);
-                              return school ? { value: school._id, label: school.name } : null;
-                            }).filter(Boolean))
+                        ? [{ value: 'ALL', label: 'All' }]
+                        : formData.schoolIds.map(id => {
+                          if (id === 'ALL') return { value: 'ALL', label: 'All' };
+                          const school = schools.find(s => s._id === id);
+                          return school ? { value: school._id, label: school.name } : null;
+                        }).filter(Boolean))
                       : (selectedSchools.length > 0
-                          ? selectedSchools.map(id => {
-                              const school = schools.find(s => s._id === id);
-                              return school ? { value: school._id, label: school.name } : null;
-                            }).filter(Boolean)
-                          : [])
+                        ? selectedSchools.map(id => {
+                          const school = schools.find(s => s._id === id);
+                          return school ? { value: school._id, label: school.name } : null;
+                        }).filter(Boolean)
+                        : [])
                     }
                     onChange={selected => {
                       if (selected.some(opt => opt.value === 'ALL')) {
@@ -364,7 +372,7 @@ const Users = () => {
                     placeholder="Select school(s)..."
                   />
                   <small className="text-gray-500">
-                    {selectedSchools.length > 0 
+                    {selectedSchools.length > 0
                       ? `Default: ${schools.find(s => s._id === selectedSchools[0])?.name || 'Selected school'}. Select multiple schools or 'All'.`
                       : 'Select multiple schools or \'All\'.'}
                   </small>

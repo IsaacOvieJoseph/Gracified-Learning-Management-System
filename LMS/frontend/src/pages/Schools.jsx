@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { toast } from 'react-hot-toast';
 
 import { useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
@@ -47,9 +48,9 @@ const CreateSchoolModal = ({ open, onClose, onCreated }) => {
       }
       onCreated && onCreated();
       onClose();
-      alert('School created successfully!');
+      toast.success('School created successfully!');
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to create school.');
+      toast.error(error.response?.data?.message || 'Failed to create school.');
     } finally {
       setLoading(false);
     }
@@ -58,7 +59,7 @@ const CreateSchoolModal = ({ open, onClose, onCreated }) => {
   if (!open) return null;
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-40">
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm overflow-y-auto max-h-[90vh]">
         <h2 className="text-xl font-bold mb-4">Create School</h2>
         <form onSubmit={handleCreateSchool} className="space-y-4">
           <div>
@@ -151,16 +152,18 @@ const EditSchoolModal = ({ open, onClose, school, onUpdated }) => {
         payload.adminId = user._id; // School admin's adminId is fixed to themselves
       }
       await api.put(`/schools/${school._id}`, payload);
+      toast.success('School updated successfully!');
       onUpdated();
       onClose();
     } catch (err) {
+      toast.error(err.response?.data?.message || 'Update failed');
       console.error("Update failed", err);
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
+      <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 overflow-y-auto max-h-[90vh]">
         <h3 className="text-xl font-bold mb-4">Edit School</h3>
 
         <form onSubmit={submit} className="space-y-4">
@@ -486,8 +489,10 @@ export default function SchoolsPage() {
 
     try {
       await api.delete(`/schools/${id}`);
+      toast.success('School deleted successfully');
       loadSchools();
     } catch (err) {
+      toast.error(err.response?.data?.message || 'Delete failed');
       console.error("Delete failed:", err);
     }
   };
@@ -495,7 +500,7 @@ export default function SchoolsPage() {
   return (
     <Layout>
       <div className="space-y-6">
-        
+
         {/* HEADER */}
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold text-gray-800">Schools</h2>
@@ -554,7 +559,7 @@ export default function SchoolsPage() {
                 </tr>
               ) : (
                 sortedSchools.map((school) => (
-                  <tr 
+                  <tr
                     key={school._id}
                     className="cursor-pointer hover:bg-gray-50"
                     onClick={() => navigate(`/schools/${school._id}`)}
@@ -566,7 +571,7 @@ export default function SchoolsPage() {
                     <td className="px-6 py-4 text-center text-sm text-gray-700">{school.studentCount}</td>
 
                     {canManage && (
-                      <td 
+                      <td
                         className="px-6 py-4 flex space-x-4"
                         onClick={(e) => e.stopPropagation()} // prevent navigation
                       >
@@ -617,17 +622,15 @@ export default function SchoolsPage() {
 function HeaderCell({ label, field, sortData, sortField, sortDir, center }) {
   return (
     <th
-      className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer select-none ${
-        center ? "text-center" : "text-left"
-      }`}
+      className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer select-none ${center ? "text-center" : "text-left"
+        }`}
       onClick={() => sortData(field)}
     >
       <div className="flex items-center space-x-1">
         <span>{label}</span>
         <ArrowUpDown
-          className={`w-4 h-4 ${
-            sortField === field ? "text-gray-700" : "text-gray-400"
-          }`}
+          className={`w-4 h-4 ${sortField === field ? "text-gray-700" : "text-gray-400"
+            }`}
         />
       </div>
     </th>

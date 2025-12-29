@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Book, Users, DollarSign, FileText, Calendar } from 'lucide-react';
+import { Book, Users, DollarSign, FileText, Calendar, ChevronDown, ChevronUp, Monitor, AlertCircle } from 'lucide-react';
 import Layout from '../components/Layout';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -19,7 +19,10 @@ const Dashboard = () => {
     assignments: 0
   });
   const [recentClassrooms, setRecentClassrooms] = useState([]);
+  const [userClassrooms, setUserClassrooms] = useState([]);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [isRecentExpanded, setIsRecentExpanded] = useState(true);
+  const [isMyClassesExpanded, setIsMyClassesExpanded] = useState(false);
   const [schoolModalOpen, setSchoolModalOpen] = useState(false);
   const [selectedSchools, setSelectedSchools] = useState(() => {
     try {
@@ -52,61 +55,100 @@ const Dashboard = () => {
 
   const fetchData = async () => {
     try {
-      const [classroomsRes, paymentsRes] = await Promise.all([
+      const [classroomsRes, paymentsRes, assignmentsRes, meetingsRes] = await Promise.all([
         api.get('/classrooms'),
-        user?.role === 'student' ? api.get('/payments/history') : Promise.resolve({ data: { payments: [] } })
+        user?.role === 'student' ? api.get('/payments/history') : Promise.resolve({ data: { payments: [] } }),
+        api.get('/assignments'),
+        api.get('/classrooms/active-meetings')
       ]);
 
-      // Filter to show only published classrooms in recent classrooms for students and teachers
-      let filteredClassrooms = classroomsRes.data.classrooms;
+      // Filter classrooms based on role and selection
+      let availableClassrooms = classroomsRes.data.classrooms;
       if (user?.role === 'student' || user?.role === 'teacher') {
-        filteredClassrooms = classroomsRes.data.classrooms.filter(c => c.published);
+        availableClassrooms = availableClassrooms.filter(c => c.published);
       }
 
-      // School admin: filter by selected school if one is selected
-      if (user?.role === 'school_admin') {
-        if (selectedSchools.length > 0) {
-          filteredClassrooms = filteredClassrooms.filter(c => {
-            const classroomSchoolId = c.schoolId?._id?.toString() || c.schoolId?.toString();
-            return selectedSchools.some(selectedId => {
-              const selectedIdStr = selectedId?._id?.toString() || selectedId?.toString();
-              return classroomSchoolId === selectedIdStr;
-            });
+      if (user?.role === 'school_admin' && selectedSchools.length > 0) {
+        availableClassrooms = availableClassrooms.filter(c => {
+          const classroomSchoolIds = Array.isArray(c.schoolId)
+            ? c.schoolId.map(sid => (sid?._id || sid)?.toString())
+            : [c.schoolId?._id?.toString() || c.schoolId?.toString()];
+
+          return selectedSchools.some(selectedId => {
+            const sid = (selectedId?._id || selectedId)?.toString();
+            return classroomSchoolIds.includes(sid);
           });
-        } else {
-          // If no school selected (showing "All"), show all classrooms from admin's schools
-          // Backend already filters by admin's schools, so we can use all classrooms
-        }
+        });
       }
 
-      setRecentClassrooms(filteredClassrooms.slice(0, 5));
+      const assignments = assignmentsRes.data.assignments || [];
+      const activeMeetings = meetingsRes.data.activeSessions || [];
+      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
 
-      // Calculate student count based on role
+      // Map activities to classrooms and identify "Recent" ones
+      const classroomsWithActivity = availableClassrooms.map(c => {
+        const activities = [];
+        const activeMeeting = activeMeetings.find(m => m.classroomId?.toString() === c._id.toString());
+        if (activeMeeting) activities.push({ type: 'meeting', label: 'Active Meeting' });
+
+        const newAssignments = assignments.filter(a =>
+          a.classroomId?._id?.toString() === c._id.toString() &&
+          new Date(a.createdAt) > threeDaysAgo
+        );
+        if (newAssignments.length > 0) activities.push({ type: 'assignment', label: `${newAssignments.length} New Assignment${newAssignments.length > 1 ? 's' : ''}` });
+
+        if (new Date(c.updatedAt) > threeDaysAgo) {
+          activities.push({ type: 'update', label: 'Recently Updated' });
+        }
+
+        return { ...c, activities };
+      });
+
+      // "Recent Classrooms" are those with any activity OR recently created
+      // For now, we'll show those with activity first, then by updatedAt
+      const recent = classroomsWithActivity
+        .filter(c => c.activities.length > 0 || new Date(c.createdAt) > threeDaysAgo)
+        .sort((a, b) => {
+          if (a.activities.length !== b.activities.length) return b.activities.length - a.activities.length;
+          return new Date(b.updatedAt) - new Date(a.updatedAt);
+        });
+
+      setRecentClassrooms(recent.slice(0, 10)); // Top 10 recent activities
+
+      // Determine 'My Classrooms' (explicitly related to user)
+      let relatedClassrooms = [];
+      if (user?.role === 'student') {
+        relatedClassrooms = availableClassrooms.filter(c =>
+          c.students?.some(s => (s._id || s) === user?._id) ||
+          user?.enrolledClasses?.includes(c._id)
+        );
+      } else if (user?.role === 'teacher' || user?.role === 'personal_teacher') {
+        relatedClassrooms = availableClassrooms.filter(c =>
+          (c.teacherId?._id || c.teacherId) === user?._id
+        );
+      } else {
+        // For admins, all available classrooms are related
+        relatedClassrooms = availableClassrooms;
+      }
+      setUserClassrooms(relatedClassrooms);
+
+      // Stats calculation
       let studentCount = 0;
-      let classroomCount = 0;
+      let classroomCount = availableClassrooms.length;
 
       if (user?.role === 'root_admin' || user?.role === 'school_admin') {
-        // For school admin, use filtered classrooms if school is selected
-        const classroomsToCount = (user?.role === 'school_admin' && selectedSchools.length > 0) 
-          ? filteredClassrooms 
-          : classroomsRes.data.classrooms;
-        studentCount = classroomsToCount.reduce((acc, c) => acc + (c.students?.length || 0), 0);
-        classroomCount = classroomsToCount.length;
+        studentCount = availableClassrooms.reduce((acc, c) => acc + (c.students?.length || 0), 0);
       } else if (user?.role === 'teacher' || user?.role === 'personal_teacher') {
-        // Teachers see only students in their classes and only published classrooms count
-        const teacherClassrooms = classroomsRes.data.classrooms.filter(c => c.teacherId?._id === user?._id);
-        studentCount = teacherClassrooms.reduce((acc, c) => acc + (c.students?.length || 0), 0);
-        classroomCount = teacherClassrooms.filter(c => c.published).length;
-      } else if (user?.role === 'student') {
-        // Students see only published classrooms
-        classroomCount = filteredClassrooms.length;
+        const myClasses = availableClassrooms.filter(c => (c.teacherId?._id || c.teacherId) === user?._id);
+        studentCount = myClasses.reduce((acc, c) => acc + (c.students?.length || 0), 0);
+        classroomCount = myClasses.length;
       }
 
       setStats({
         classrooms: classroomCount,
         students: studentCount,
         payments: paymentsRes.data.payments?.length || 0,
-        assignments: 0
+        assignments: assignments.length
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -171,69 +213,143 @@ const Dashboard = () => {
           )}
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Recent Classrooms</h3>
-          <div className="space-y-3">
-            {recentClassrooms.length > 0 ? (
-              recentClassrooms.map((classroom) => (
-                <Link
-                  key={classroom._id}
-                  to={`/classrooms/${classroom._id}`}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition"
-                >
-                  <div>
-                    <h4 className="font-semibold text-gray-800">{classroom.name}</h4>
-                    <div className="flex items-center space-x-4 mt-1 text-sm text-gray-600">
-                      <span className="flex items-center">
-                        <Calendar className="w-4 h-4 mr-1" />
-                        {/*   {classroom.schedule} */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <button
+            onClick={() => setIsRecentExpanded(!isRecentExpanded)}
+            className="w-full flex items-center justify-between p-6 hover:bg-gray-50 transition border-b"
+          >
+            <h3 className="text-lg font-semibold">Recent Activity & Classrooms</h3>
+            {isRecentExpanded ? <ChevronUp className="w-5 h-5 text-gray-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
+          </button>
 
-                        {/* Displaying schedule - iterate over the array */}
-                        {classroom.schedule && classroom.schedule.length > 0 ? (
-                          classroom.schedule.map((session, index) => (
-                            <span key={index} className="mr-2">
-                              {session.dayOfWeek} {session.startTime}-{session.endTime}
-                            </span>
-                          ))
-                        ) : (
-                          <span>No schedule available</span>
+          {isRecentExpanded && (
+            <div className="p-6 pt-0 divide-y divide-gray-100">
+              {recentClassrooms.length > 0 ? (
+                recentClassrooms.map((classroom) => (
+                  <Link
+                    key={classroom._id}
+                    to={`/classrooms/${classroom._id}`}
+                    className="flex flex-col md:flex-row md:items-center justify-between py-4 hover:bg-gray-50 transition px-2 rounded-md"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <h4 className="font-semibold text-gray-800">{classroom.name}</h4>
+                        {classroom.activities?.map((act, idx) => (
+                          <span
+                            key={idx}
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium space-x-1 ${act.type === 'meeting' ? 'bg-red-100 text-red-800 animate-pulse' :
+                              act.type === 'assignment' ? 'bg-orange-100 text-orange-800' :
+                                'bg-green-100 text-green-800'
+                              }`}
+                          >
+                            {act.type === 'meeting' && <Monitor className="w-3 h-3" />}
+                            {act.type === 'assignment' && <AlertCircle className="w-3 h-3" />}
+                            <span>{act.label}</span>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex items-center space-x-4 mt-1 text-sm text-gray-600">
+                        <span className="flex items-center">
+                          <Calendar className="w-4 h-4 mr-1 text-gray-400" />
+                          {classroom.schedule && classroom.schedule.length > 0 ? (
+                            classroom.schedule.map((session, index) => (
+                              <span key={index} className="mr-2">
+                                {session.dayOfWeek.substring(0, 3)} {session.startTime}-{session.endTime}
+                              </span>
+                            ))
+                          ) : (
+                            <span>No schedule available</span>
+                          )}
+                        </span>
+                        {user?.role !== 'student' && (
+                          <span className="flex items-center">
+                            <Users className="w-4 h-4 mr-1 text-gray-400" />
+                            {classroom.students?.length || 0} enrolled
+                          </span>
                         )}
+                      </div>
+                    </div>
+                    <div className="mt-2 md:mt-0 flex items-center space-x-3">
+                      {classroom.isPaid && classroom.pricing?.amount > 0 ? (
+                        <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-bold">
+                          {formatAmount(classroom.pricing?.amount || 0, classroom.pricing?.currency || 'NGN')}
+                        </span>
+                      ) : (
+                        <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-bold">
+                          Free
+                        </span>
+                      )}
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${(Array.isArray(classroom.schoolId) ? classroom.schoolId.length > 0 : classroom.schoolId) ? 'bg-indigo-100 text-indigo-800' : 'bg-purple-100 text-purple-800'}`}>
+                        {(Array.isArray(classroom.schoolId) ? (classroom.schoolId[0]?.name || classroom.schoolId[0]) : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}
+                        {Array.isArray(classroom.schoolId) && classroom.schoolId.length > 1 && ` +${classroom.schoolId.length - 1}`}
                       </span>
-
-
-                    {user?.role !== 'student' && (
-                      <span className="flex items-center">
-                        <Users className="w-4 h-4 mr-1" />
-                        {classroom.students?.length || 0} students
-                      </span>
-                    )}
-                  </div>
-                </div>
-                  {
-                  classroom.isPaid && classroom.pricing?.amount > 0 ? (
-                    <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
-                      {formatAmount(classroom.pricing?.amount || 0, classroom.pricing?.currency || 'NGN')}
-                    </span>
-                  ) : (
-                    <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
-                      Free
-                    </span>
-                  )
-                }
-                  {!classroom.schoolId && classroom.teacherId?.role === 'personal_teacher' && (
-                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs font-semibold ml-1">
-                  Personal
-                </span>
+                    </div>
+                  </Link>
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-8">No recent activity or classrooms found</p>
               )}
-          </Link>
-          ))
-          ) : (
-          <p className="text-gray-500 text-center py-4">No classrooms yet</p>
-            )}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <button
+            onClick={() => setIsMyClassesExpanded(!isMyClassesExpanded)}
+            className="w-full flex items-center justify-between p-6 hover:bg-gray-50 transition border-b"
+          >
+            <h3 className="text-lg font-semibold">
+              {user?.role === 'student' ? 'My Enrolled Classrooms' :
+                user?.role === 'teacher' || user?.role === 'personal_teacher' ? 'Classrooms I Teach' :
+                  'All Related Classrooms'}
+            </h3>
+            {isMyClassesExpanded ? <ChevronUp className="w-5 h-5 text-gray-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
+          </button>
+
+          {isMyClassesExpanded && (
+            <div className="p-6 pt-0 divide-y divide-gray-100">
+              {userClassrooms.length > 0 ? (
+                userClassrooms.map((classroom) => (
+                  <Link
+                    key={classroom._id}
+                    to={`/classrooms/${classroom._id}`}
+                    className="flex flex-col md:items-center md:flex-row justify-between py-4 hover:bg-gray-50 transition px-2 rounded-md"
+                  >
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-800">{classroom.name}</h4>
+                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{classroom.description}</p>
+                      <div className="flex items-center space-x-4 mt-2 text-xs text-gray-600">
+                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${(Array.isArray(classroom.schoolId) ? classroom.schoolId.length > 0 : classroom.schoolId) ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'}`}>
+                          {(Array.isArray(classroom.schoolId) ? (classroom.schoolId[0]?.name || classroom.schoolId[0]) : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}
+                          {Array.isArray(classroom.schoolId) && classroom.schoolId.length > 1 && ` +${classroom.schoolId.length - 1}`}
+                        </span>
+                        <span className="flex items-center">
+                          <Calendar className="w-3.5 h-3.5 mr-1 text-gray-400" />
+                          {classroom.schedule?.[0]?.dayOfWeek.substring(0, 3)} {classroom.schedule?.[0]?.startTime}
+                          {classroom.schedule?.length > 1 && ` +${classroom.schedule.length - 1} more`}
+                        </span>
+                        {user?.role !== 'student' && (
+                          <span className="flex items-center">
+                            <Users className="w-3.5 h-3.5 mr-1 text-gray-400" />
+                            {classroom.students?.length || 0} students
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-2 md:mt-0">
+                      <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">
+                        View Classroom →
+                      </span>
+                    </div>
+                  </Link>
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-8">No classrooms found in this section</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
-
-    </div>
     </Layout >
   );
 };

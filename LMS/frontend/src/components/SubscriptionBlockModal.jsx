@@ -4,7 +4,7 @@ const SubscriptionBlockModal = ({ open, onClose, onViewPlans }) => {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-      <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center overflow-y-auto max-h-[90vh]">
         <h2 className="text-2xl font-bold mb-4 text-red-600">Action Restricted</h2>
         <p className="mb-6 text-gray-700">
           Your current subscription does not allow this action. Please upgrade or change your plan to continue.

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { Plus, Calendar, Users, Book, Video, Edit, Eye, EyeOff, Search } from 'lucide-react';
+import Select from 'react-select';
 import Layout from '../components/Layout';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -22,6 +24,7 @@ const Classrooms = () => {
     pricing: { type: 'per_class', amount: 0 },
     isPaid: false,
     teacherId: '',
+    schoolIds: [], // Changed from schoolId
     published: false
   });
 
@@ -41,6 +44,12 @@ const Classrooms = () => {
     }
     // Listen for school selection changes from SchoolSwitcher
     const handler = (e) => {
+      try {
+        const newSchools = JSON.parse(localStorage.getItem('selectedSchools')) || [];
+        setSelectedSchools(newSchools);
+      } catch (err) {
+        console.error('Error parsing school selection:', err);
+      }
       fetchClassrooms();
       if (['root_admin', 'school_admin'].includes(user?.role)) {
         fetchTeachers();
@@ -55,7 +64,7 @@ const Classrooms = () => {
       setFilteredClassrooms(classrooms);
     } else {
       const query = searchQuery.toLowerCase();
-      const filtered = classrooms.filter(c => 
+      const filtered = classrooms.filter(c =>
         c.name?.toLowerCase().includes(query) ||
         c.description?.toLowerCase().includes(query) ||
         c.teacherId?.name?.toLowerCase().includes(query)
@@ -77,14 +86,16 @@ const Classrooms = () => {
       if (user?.role === 'school_admin') {
         if (selectedSchools.length > 0) {
           filteredClassrooms = filteredClassrooms.filter(c => {
-            const classroomSchoolId = c.schoolId?._id?.toString() || c.schoolId?.toString();
+            const classroomSchoolIds = Array.isArray(c.schoolId)
+              ? c.schoolId.map(sid => (sid?._id || sid)?.toString())
+              : [c.schoolId?._id?.toString() || c.schoolId?.toString()];
+
             return selectedSchools.some(selectedId => {
-              const selectedIdStr = selectedId?._id?.toString() || selectedId?.toString();
-              return classroomSchoolId === selectedIdStr;
+              const sid = (selectedId?._id || selectedId)?.toString();
+              return classroomSchoolIds.includes(sid);
             });
           });
         }
-        // If no school selected (showing "All"), backend already filters by admin's schools
       }
       setClassrooms([...filteredClassrooms]);
       setFilteredClassrooms([...filteredClassrooms]);
@@ -97,18 +108,11 @@ const Classrooms = () => {
 
   const fetchTeachers = async () => {
     try {
-      let url = '/users';
-      if (user?.role === 'school_admin') {
-        // Use selected school from dropdown, or fall back to user.schoolId
-        const schoolIdToUse = selectedSchools.length > 0 ? selectedSchools[0] : (user?.schoolId?.[0] || user?.schoolId);
-        if (schoolIdToUse) {
-          url = `/users?schoolId=${schoolIdToUse}&role=teacher,personal_teacher`; // Filter by schoolId and roles
-        }
-      }
+      let url = '/users?role=teacher,personal_teacher';
       console.log('Classrooms.jsx: Fetching teachers from URL:', url);
       const response = await api.get(url);
       console.log('Classrooms.jsx: Raw response data for teachers:', response.data);
-      const teacherList = response.data.users.filter(u => 
+      const teacherList = response.data.users.filter(u =>
         ['teacher', 'personal_teacher'].includes(u.role)
       );
       setTeachers(teacherList);
@@ -123,19 +127,10 @@ const Classrooms = () => {
       await api.put(`/classrooms/${classroomId}/publish`, { published: !currentStatus });
       fetchClassrooms();
     } catch (error) {
-      alert(error.response?.data?.message || 'Error updating publish status');
+      toast.error(error.response?.data?.message || 'Error updating publish status');
     }
   };
 
-  // School selection state for school admin - sync with selectedSchools from SchoolSwitcher
-  const [selectedSchool, setSelectedSchool] = useState(() => {
-    try {
-      const arr = JSON.parse(localStorage.getItem('selectedSchools'));
-      return arr && arr.length ? arr[0] : '';
-    } catch {
-      return '';
-    }
-  });
   const [schools, setSchools] = useState([]);
   useEffect(() => {
     if (user?.role === 'school_admin') {
@@ -145,40 +140,33 @@ const Classrooms = () => {
     }
   }, [user]);
 
-  // Sync selectedSchool with selectedSchools from SchoolSwitcher
-  useEffect(() => {
-    const syncSchool = () => {
-      try {
-        const arr = JSON.parse(localStorage.getItem('selectedSchools'));
-        const newSelectedSchool = arr && arr.length ? arr[0] : '';
-        if (newSelectedSchool !== selectedSchool) {
-          setSelectedSchool(newSelectedSchool);
-        }
-      } catch {
-        if (selectedSchool !== '') {
-          setSelectedSchool('');
-        }
-      }
-    };
-    syncSchool();
-    // Listen for school selection changes
-    const handler = () => syncSchool();
-    window.addEventListener('schoolSelectionChanged', handler);
-    return () => window.removeEventListener('schoolSelectionChanged', handler);
-  }, [selectedSchool]);
-
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
       const submitData = { ...formData };
       if (user?.role === 'school_admin') {
-        // Always use the currently selected school from dropdown (selectedSchools), or form selection
-        const currentSelectedSchool = selectedSchool || selectedSchools[0] || '';
-        if (!currentSelectedSchool) {
-          alert('Please select a school from the header dropdown or in the form');
-          return;
+        let schoolIdToSend = null;
+        if (formData.schoolIds && formData.schoolIds.length > 0) {
+          const allSelected = formData.schoolIds.length === schools.length &&
+            schools.every(s => formData.schoolIds.includes(s._id));
+
+          if (allSelected || formData.schoolIds.includes('ALL')) {
+            schoolIdToSend = schools.map(s => s._id);
+          } else {
+            schoolIdToSend = formData.schoolIds.filter(id => id !== 'ALL');
+          }
+        } else {
+          // Fallback to active school from switcher if none selected in form
+          const currentSelected = JSON.parse(localStorage.getItem('selectedSchools') || '[]');
+          if (currentSelected.length > 0) {
+            schoolIdToSend = currentSelected;
+          } else {
+            toast.error('Please select at least one school');
+            return;
+          }
         }
-        submitData.schoolId = currentSelectedSchool;
+        submitData.schoolId = schoolIdToSend;
+        delete submitData.schoolIds;
       }
       // Teachers don't need to provide teacherId (it's auto-assigned)
       if (user?.role === 'teacher' || user?.role === 'personal_teacher') {
@@ -196,9 +184,10 @@ const Classrooms = () => {
         teacherId: '',
         published: false
       });
+      toast.success('Classroom created successfully');
       fetchClassrooms();
     } catch (error) {
-      alert(error.response?.data?.message || 'Error creating classroom');
+      toast.error(error.response?.data?.message || 'Error creating classroom');
     }
   };
 
@@ -218,11 +207,11 @@ const Classrooms = () => {
           {canCreate && (
             <button
               onClick={() => {
-                // Sync selectedSchool with current selectedSchools when opening modal
                 const currentSelected = JSON.parse(localStorage.getItem('selectedSchools') || '[]');
-                if (currentSelected.length > 0 && user?.role === 'school_admin') {
-                  setSelectedSchool(currentSelected[0]);
-                }
+                setFormData({
+                  ...formData,
+                  schoolIds: user?.role === 'school_admin' ? currentSelected.map(id => id?._id || id) : []
+                });
                 setShowCreateModal(true);
               }}
               className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
@@ -250,13 +239,12 @@ const Classrooms = () => {
             const isEnrolled = user?.enrolledClasses?.includes(classroom._id) ||
               classroom.students?.some(s => s._id === user?._id);
 
-            // Check if class is from personal teacher
-            const isPersonalTeacher = !classroom.schoolId && classroom.teacherId?.role === 'personal_teacher';
-            
+            // Check if class is from a school or tutorial
+            const isTutorial = !classroom.schoolId;
+
             return (
-              <div key={classroom._id} className={`bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition ${
-                isPersonalTeacher ? 'border-l-4 border-purple-500' : ''
-              }`}>
+              <div key={classroom._id} className={`bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition ${isTutorial ? 'border-l-4 border-purple-500' : ''
+                }`}>
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <div className="flex items-center space-x-2">
@@ -266,11 +254,10 @@ const Classrooms = () => {
                           Draft
                         </span>
                       )}
-                      {isPersonalTeacher && (
-                        <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full font-semibold">
-                          Personal Teacher
-                        </span>
-                      )}
+                      <span className={`text-xs px-2 py-1 rounded-full font-semibold ${(Array.isArray(classroom.schoolId) ? classroom.schoolId.length > 0 : classroom.schoolId) ? 'bg-indigo-100 text-indigo-800' : 'bg-purple-100 text-purple-800'}`}>
+                        {(Array.isArray(classroom.schoolId) ? (classroom.schoolId[0]?.name || classroom.schoolId[0]) : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}
+                        {Array.isArray(classroom.schoolId) && classroom.schoolId.length > 1 && ` +${classroom.schoolId.length - 1}`}
+                      </span>
                     </div>
                     <p className="text-sm text-gray-600">
                       by {classroom.teacherId?.name || 'TBA'}
@@ -278,10 +265,10 @@ const Classrooms = () => {
                   </div>
                   <div className="flex flex-col items-end space-y-1">
                     {classroom.isPaid && classroom.pricing?.amount > 0 ? (
-                        <span className="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-semibold">
-                          {formatAmount(classroom.pricing?.amount || 0, classroom.pricing?.currency || 'NGN')}
-                        </span>
-                      ) : (
+                      <span className="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-semibold">
+                        {formatAmount(classroom.pricing?.amount || 0, classroom.pricing?.currency || 'NGN')}
+                      </span>
+                    ) : (
                       <span className="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-semibold">
                         Free
                       </span>
@@ -289,11 +276,10 @@ const Classrooms = () => {
                     {['root_admin', 'school_admin', 'personal_teacher'].includes(user?.role) && (
                       <button
                         onClick={() => handlePublishToggle(classroom._id, classroom.published)}
-                        className={`text-xs px-2 py-1 rounded ${
-                          classroom.published 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-gray-100 text-gray-800'
-                        }`}
+                        className={`text-xs px-2 py-1 rounded ${classroom.published
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
+                          }`}
                         title={classroom.published ? 'Published - Click to unpublish' : 'Unpublished - Click to publish'}
                       >
                         {classroom.published ? <Eye className="w-3 h-3 inline" /> : <EyeOff className="w-3 h-3 inline" />}
@@ -353,36 +339,42 @@ const Classrooms = () => {
 
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 overflow-y-auto" style={{ maxHeight: '90vh' }}>
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 overflow-y-auto max-h-[90vh]">
             <h3 className="text-xl font-bold mb-4">Create Classroom</h3>
-            { (['root_admin', 'school_admin'].includes(user?.role) && teachers.length === 0) && (
-                <p className="text-red-500 text-sm mb-4 text-center">
-                  Please ensure there is at least one teacher registered for the school.
-                </p>
-              )}
+            {(['root_admin', 'school_admin'].includes(user?.role) && teachers.length === 0) && (
+              <p className="text-red-500 text-sm mb-4 text-center">
+                Please ensure there is at least one teacher registered for the school.
+              </p>
+            )}
             <form onSubmit={handleCreate} className="space-y-4">
               {user?.role === 'school_admin' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">School</label>
-                  <select
-                    value={selectedSchool || selectedSchools[0] || ''}
-                    onChange={e => {
-                      setSelectedSchool(e.target.value);
-                      // Reset teacher selection when school changes
-                      setFormData({ ...formData, teacherId: '' });
+                  <label className="block text-sm font-medium text-gray-700 mb-1">School(s)</label>
+                  <Select
+                    isMulti
+                    options={[{ value: 'ALL', label: 'All Schools' }, ...schools.map(s => ({ value: s._id, label: s.name }))]}
+                    value={formData.schoolIds && formData.schoolIds.length > 0
+                      ? (formData.schoolIds.length === schools.length
+                        ? [{ value: 'ALL', label: 'All Schools' }]
+                        : formData.schoolIds.map(id => {
+                          if (id === 'ALL') return { value: 'ALL', label: 'All Schools' };
+                          const school = schools.find(s => s._id === id);
+                          return school ? { value: school._id, label: school.name } : null;
+                        }).filter(Boolean))
+                      : []
+                    }
+                    onChange={selected => {
+                      if (selected.some(opt => opt.value === 'ALL')) {
+                        setFormData({ ...formData, schoolIds: schools.map(s => s._id), teacherId: '' });
+                      } else {
+                        setFormData({ ...formData, schoolIds: selected.map(opt => opt.value), teacherId: '' });
+                      }
                     }}
-                    className="w-full px-4 py-2 border rounded-lg"
-                    required
-                  >
-                    <option value="">Select School</option>
-                    {schools.map(s => (
-                      <option key={s._id} value={s._id}>{s.name}</option>
-                    ))}
-                  </select>
+                    classNamePrefix="react-select"
+                    placeholder="Select school(s)..."
+                  />
                   <small className="text-gray-500 text-xs mt-1 block">
-                    {selectedSchools.length > 0 
-                      ? `Default: ${schools.find(s => s._id === selectedSchools[0])?.name || 'Selected school'}. You can change it above.`
-                      : 'Please select a school from the header dropdown first'}
+                    You can select multiple schools or "All Schools".
                   </small>
                 </div>
               )}
@@ -460,9 +452,9 @@ const Classrooms = () => {
                 ))}
                 <button
                   type="button"
-                  onClick={() => setFormData({ 
-                    ...formData, 
-                    schedule: [...formData.schedule, { dayOfWeek: '', startTime: '', endTime: '' }] 
+                  onClick={() => setFormData({
+                    ...formData,
+                    schedule: [...formData.schedule, { dayOfWeek: '', startTime: '', endTime: '' }]
                   })}
                   className="mt-2 px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
                 >
@@ -484,17 +476,21 @@ const Classrooms = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Assign Teacher</label>
                   {(() => {
-                    // Filter teachers by selected school in the form
-                    const schoolIdInForm = selectedSchool || selectedSchools[0] || '';
-                    const filteredTeachers = schoolIdInForm && user?.role === 'school_admin'
+                    // Filter teachers by selected schools in the form
+                    const schoolIdsInForm = formData.schoolIds && formData.schoolIds.length > 0
+                      ? formData.schoolIds
+                      : (selectedSchools.length > 0 ? selectedSchools : []);
+
+                    const filteredTeachers = schoolIdsInForm.length > 0 && user?.role === 'school_admin'
                       ? teachers.filter(teacher => {
-                          const teacherSchoolIds = Array.isArray(teacher.schoolId) 
-                            ? teacher.schoolId.map(id => id?.toString() || id)
-                            : [teacher.schoolId?._id?.toString() || teacher.schoolId?.toString()];
-                          return teacherSchoolIds.includes(schoolIdInForm.toString());
-                        })
+                        const teacherSchoolIds = Array.isArray(teacher.schoolId)
+                          ? teacher.schoolId.map(id => (id?._id || id)?.toString())
+                          : [teacher.schoolId?._id?.toString() || teacher.schoolId?.toString()];
+
+                        return schoolIdsInForm.some(sid => teacherSchoolIds.includes((sid?._id || sid)?.toString()));
+                      })
                       : teachers;
-                    
+
                     return (
                       <select
                         value={formData.teacherId}
@@ -511,7 +507,7 @@ const Classrooms = () => {
                           ))
                         ) : (
                           <option value="" disabled>
-                            {schoolIdInForm ? 'No teachers found for selected school' : 'Please select a school first'}
+                            {schoolIdsInForm.length > 0 ? 'No teachers found for selected school(s)' : 'Please select a school first'}
                           </option>
                         )}
                       </select>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../utils/api'; // Use our configured API instance
 import { useAuth } from '../context/AuthContext';
@@ -68,12 +69,12 @@ const SubscriptionManagement = () => {
           // For simplicity, we're not setting endDate here for PAYG
         });
 
-        alert(`Successfully subscribed to ${selectedPlan.name}!`);
+        toast.success(`Successfully subscribed to ${selectedPlan.name}!`);
         await refreshUser();
         navigate('/dashboard'); // Redirect to dashboard after successful subscription
       } else {
         // For paid plans (monthly, yearly), integrate with Stripe Checkout
-        alert(`Proceeding to payment for ${selectedPlan.name}. (Stripe integration needed here)`);
+        toast.success(`Proceeding to payment for ${selectedPlan.name}. (Stripe integration needed here)`);
         // TODO: Implement actual Stripe checkout for recurring payments
         // After successful Stripe payment, you would then call your backend to update user-subscriptions
         // Example: await axios.post('/api/payments/subscribe', { planId: selectedPlan._id });
@@ -113,20 +114,20 @@ const SubscriptionManagement = () => {
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-2xl">
         <h2 className="text-3xl font-bold text-center text-gray-900 mb-6">Choose Your Subscription Plan</h2>
-        
-        {user?.trialEndDate && user.subscriptionStatus === 'trial' && new Date(user.trialEndDate) > Date.now() && 
- !['student', 'teacher'].includes(user.role) && (
-          <p className="text-center text-sm text-gray-600 mb-4">
-            Your free trial ends on {new Date(user.trialEndDate).toLocaleDateString()}. Please select a plan before it expires.
-          </p>
-        )}
 
-        {user?.trialEndDate && user.subscriptionStatus === 'trial' && new Date(user.trialEndDate) <= Date.now() && 
- !['student', 'teacher'].includes(user.role) && (
-          <p className="text-center text-red-500 text-lg font-semibold mb-4">
-            Your free trial has expired! Please choose a plan to continue.
-          </p>
-        )}
+        {user?.trialEndDate && user.subscriptionStatus === 'trial' && new Date(user.trialEndDate) > Date.now() &&
+          !['student', 'teacher'].includes(user.role) && (
+            <p className="text-center text-sm text-gray-600 mb-4">
+              Your free trial ends on {new Date(user.trialEndDate).toLocaleDateString()}. Please select a plan before it expires.
+            </p>
+          )}
+
+        {user?.trialEndDate && user.subscriptionStatus === 'trial' && new Date(user.trialEndDate) <= Date.now() &&
+          !['student', 'teacher'].includes(user.role) && (
+            <p className="text-center text-red-500 text-lg font-semibold mb-4">
+              Your free trial has expired! Please choose a plan to continue.
+            </p>
+          )}
 
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
 
@@ -149,7 +150,7 @@ const SubscriptionManagement = () => {
               )}
               <ul className="text-gray-700 text-left mt-4 space-y-1">
                 {plan.features.map((feature, idx) => (
-                  <li key={idx} className="flex items-center"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-check-circle text-green-500 mr-2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>{feature}</li>
+                  <li key={idx} className="flex items-center"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-check-circle text-green-500 mr-2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><path d="m9 11 3 3L22 4" /></svg>{feature}</li>
                 ))}
               </ul>
             </div>

@@ -15,11 +15,11 @@ const classroomSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  schoolId: {
+  schoolId: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'School',
     default: null
-  },
+  }],
   students: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

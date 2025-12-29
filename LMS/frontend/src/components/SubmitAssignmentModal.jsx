@@ -39,7 +39,7 @@ const SubmitAssignmentModal = ({ assignment, onClose, onSubmit }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-2xl max-w-lg w-full p-6 space-y-4">
+      <div className="bg-white rounded-lg shadow-2xl max-w-lg w-full p-6 space-y-4 overflow-y-auto max-h-[90vh]">
         <h3 className="text-xl font-bold mb-4">Submit Assignment: {assignment.title}</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
           {assignment.questions.map((question, qIndex) => (

@@ -8,6 +8,38 @@ const subscriptionCheck = require('../middleware/subscriptionCheck'); // Import 
 const { filterAssignmentsBySubscription, isClassroomOwnerSubscriptionValid } = require('../utils/subscriptionHelper');
 const router = express.Router();
 
+// Get all assignments relevant to the user
+router.get('/', auth, async (req, res) => {
+  try {
+    let query = {};
+    if (req.user.role === 'student') {
+      const classrooms = await Classroom.find({ students: req.user._id }).select('_id');
+      const classroomIds = classrooms.map(c => c._id);
+      query = { classroomId: { $in: classroomIds } };
+    } else if (req.user.role === 'teacher' || req.user.role === 'personal_teacher') {
+      const classrooms = await Classroom.find({ teacherId: req.user._id }).select('_id');
+      const classroomIds = classrooms.map(c => c._id);
+      query = { classroomId: { $in: classroomIds } };
+    } else if (req.user.role === 'school_admin') {
+      const School = require('../models/School');
+      const adminSchools = await School.find({ adminId: req.user._id }).select('_id');
+      const adminSchoolIds = adminSchools.map(s => s._id);
+      const classrooms = await Classroom.find({ schoolId: { $in: adminSchoolIds } }).select('_id');
+      const classroomIds = classrooms.map(c => c._id);
+      query = { classroomId: { $in: classroomIds } };
+    }
+
+    const assignments = await Assignment.find(query)
+      .populate('classroomId', 'name')
+      .populate('topicId', 'name')
+      .sort({ createdAt: -1 });
+
+    res.json({ assignments });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Get assignments for a classroom
 router.get('/classroom/:classroomId', auth, subscriptionCheck, async (req, res) => {
   try {
@@ -34,7 +66,7 @@ router.get('/classroom/:classroomId', auth, subscriptionCheck, async (req, res) 
         return res.json({ assignments: [] }); // Return empty array if subscription expired
       }
     }
-    
+
     // For teachers, allow access to their own class assignments regardless of subscription
     if (req.user.role === 'teacher') {
       const teacherId = classroom.teacherId._id || classroom.teacherId;
@@ -46,7 +78,7 @@ router.get('/classroom/:classroomId', auth, subscriptionCheck, async (req, res) 
         }
       }
     }
-    
+
     // For students, allow access to enrolled class assignments regardless of subscription
     if (req.user.role === 'student') {
       const isEnrolled = classroom.students.some(
@@ -428,6 +460,11 @@ router.post('/:id/submit', auth, async (req, res) => {
 
     if (!isEnrolled) {
       return res.status(403).json({ message: 'Not enrolled in this classroom' });
+    }
+
+    // Check if deadline has passed
+    if (assignment.dueDate && new Date() > new Date(assignment.dueDate)) {
+      return res.status(400).json({ message: 'Assignment deadline has passed. You cannot submit anymore.' });
     }
 
     // Check if already submitted

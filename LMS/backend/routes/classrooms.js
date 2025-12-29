@@ -43,7 +43,14 @@ router.get('/', auth, subscriptionCheck, async (req, res) => {
     }
 
     let classrooms = await Classroom.find(query)
-      .populate('teacherId', 'name email role subscriptionStatus trialEndDate')
+      .populate({
+        path: 'teacherId',
+        select: 'name email role subscriptionStatus trialEndDate tutorialId',
+        populate: {
+          path: 'tutorialId',
+          select: 'name'
+        }
+      })
       .populate('students', 'name email')
       .populate('topics', 'name description')
       .populate({
@@ -65,11 +72,46 @@ router.get('/', auth, subscriptionCheck, async (req, res) => {
   }
 });
 
+// Get all active meetings for user's classrooms
+router.get('/active-meetings', auth, async (req, res) => {
+  try {
+    let classroomQuery = {};
+    if (req.user.role === 'student') {
+      classroomQuery = { students: req.user._id, published: true };
+    } else if (req.user.role === 'teacher' || req.user.role === 'personal_teacher') {
+      classroomQuery = { teacherId: req.user._id };
+    } else if (req.user.role === 'school_admin') {
+      const adminSchools = await School.find({ adminId: req.user._id }).select('_id');
+      classroomQuery = { schoolId: { $in: adminSchools.map(s => s._id) } };
+    }
+
+    const classrooms = await Classroom.find(classroomQuery).select('_id');
+    const classroomIds = classrooms.map(c => c._id);
+
+    const fortyFiveMinAgo = new Date(Date.now() - 45 * 60 * 1000);
+    const activeSessions = await CallSession.find({
+      classroomId: { $in: classroomIds },
+      startedAt: { $gt: fortyFiveMinAgo }
+    }).sort({ startedAt: -1 });
+
+    res.json({ activeSessions });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Get classroom by ID
 router.get('/:id', auth, subscriptionCheck, async (req, res) => {
   try {
     const classroom = await Classroom.findById(req.params.id)
-      .populate('teacherId', 'name email role subscriptionStatus trialEndDate')
+      .populate({
+        path: 'teacherId',
+        select: 'name email role subscriptionStatus trialEndDate tutorialId',
+        populate: {
+          path: 'tutorialId',
+          select: 'name'
+        }
+      })
       .populate('students', 'name email')
       .populate('topics', 'name description materials')
       .populate({
@@ -102,7 +144,7 @@ router.get('/:id', auth, subscriptionCheck, async (req, res) => {
         return res.status(403).json({ message: 'This class is not available. The class owner\'s subscription has expired.', subscriptionExpired: true });
       }
     }
-    
+
     // For teachers, allow access to their own classes regardless of subscription
     if (req.user.role === 'teacher') {
       const teacherId = classroom.teacherId._id || classroom.teacherId;
@@ -114,7 +156,7 @@ router.get('/:id', auth, subscriptionCheck, async (req, res) => {
         }
       }
     }
-    
+
     // For students, allow access to enrolled classes regardless of subscription
     if (req.user.role === 'student') {
       const isEnrolled = classroom.students.some(
@@ -122,10 +164,10 @@ router.get('/:id', auth, subscriptionCheck, async (req, res) => {
       ) || req.user.enrolledClasses.some(
         classId => classId.toString() === classroom._id.toString()
       );
-    //comment out
-    //  if (!isEnrolled) {
-    //    return res.status(403).json({ message: 'You are not enrolled in this class.', enrollmentRequired: true });
-    //  }
+      //comment out
+      //  if (!isEnrolled) {
+      //    return res.status(403).json({ message: 'You are not enrolled in this class.', enrollmentRequired: true });
+      //  }
     }
 
     // Teachers can see their own classrooms even if unpublished
@@ -185,58 +227,69 @@ router.post('/', auth, authorize('root_admin', 'school_admin', 'teacher', 'perso
       if (!teacher || !['teacher', 'personal_teacher'].includes(teacher.role)) {
         return res.status(400).json({ message: 'Invalid teacher ID' });
       }
-      if (req.user.role === 'school_admin' && teacher.schoolId?.toString() !== req.user.schoolId?.toString()) {
-        return res.status(403).json({ message: 'Teacher must belong to your school' });
+
+      if (req.user.role === 'school_admin') {
+        const managedSchools = await School.find({ adminId: req.user._id }).select('_id');
+        const managedSchoolIds = managedSchools.map(s => s._id.toString());
+
+        // Fetch teacher again to get fresh schoolId data
+        const teacherToVerify = await User.findById(teacherId);
+        const teacherSchoolIds = (Array.isArray(teacherToVerify?.schoolId) ? teacherToVerify.schoolId : [teacherToVerify?.schoolId])
+          .filter(Boolean)
+          .map(id => (id._id || id).toString());
+
+        const hasAccess = teacherSchoolIds.some(sid => managedSchoolIds.includes(sid));
+
+        if (!hasAccess && teacherToVerify?.role !== 'personal_teacher') {
+          // One final check: if the teacher belongs to NO schools yet, but is assigned to this school's admin,
+          // or if there's any other indicator of association. 
+          // For now, let's just make the error message more descriptive if it fails.
+          return res.status(403).json({
+            message: 'Teacher must belong to one of your schools. Please check the teacher\'s profile and ensure they are assigned to your school.',
+            adminSchoolCount: managedSchools.length,
+            teacherSchoolCount: teacherSchoolIds.length
+          });
+        }
       }
       finalTeacherId = teacherId;
     }
 
     // Determine school ID
-    let finalSchoolId = null; // Default to null
+    let finalSchoolId = [];
     if (req.user.role === 'school_admin') {
-      // Use provided schoolId from request body if available
+      const School = require('../models/School');
       if (schoolId) {
-        // Verify that the admin owns this school by checking School model
-        const School = require('../models/School');
-        const school = await School.findOne({ 
-          _id: schoolId,
-          adminId: req.user._id 
-        });
-        
-        if (school) {
-          finalSchoolId = schoolId;
-        } else {
+        const requestedSchoolIds = Array.isArray(schoolId) ? schoolId : [schoolId];
+        const validSchools = await School.find({
+          _id: { $in: requestedSchoolIds },
+          adminId: req.user._id
+        }).select('_id');
+
+        finalSchoolId = validSchools.map(s => s._id);
+        if (finalSchoolId.length === 0) {
           return res.status(403).json({ message: 'You can only create classrooms for your assigned schools' });
         }
       } else {
-        // If no schoolId provided, find the first school where this admin is the adminId
-        const School = require('../models/School');
+        // Default to first school if none provided
         const firstSchool = await School.findOne({ adminId: req.user._id }).sort({ createdAt: 1 });
         if (firstSchool) {
-          finalSchoolId = firstSchool._id;
-        } else {
-          return res.status(400).json({ message: 'No school found. Please create a school first or select one in the form.' });
+          finalSchoolId = [firstSchool._id];
         }
       }
     } else if (req.user.role === 'teacher') {
-      // If a regular teacher creates a class, it should be associated with their school
-      finalSchoolId = req.user.schoolId;
+      finalSchoolId = Array.isArray(req.user.schoolId) ? req.user.schoolId : (req.user.schoolId ? [req.user.schoolId] : []);
     } else if (req.user.role === 'personal_teacher') {
-      finalSchoolId = null;
+      finalSchoolId = [];
     } else if (req.user.role === 'root_admin') {
       if (teacherId) {
-        // If root admin is assigning a teacher, get the schoolId from the assigned teacher
         const assignedTeacher = await User.findById(teacherId);
         if (assignedTeacher && assignedTeacher.role === 'teacher') {
-          finalSchoolId = assignedTeacher.schoolId;
-        } else if (assignedTeacher && assignedTeacher.role === 'personal_teacher') {
-          finalSchoolId = null;
-        } else if (schoolId) { // If teacherId is provided but not a regular/personal teacher, or no schoolId on teacher
-          finalSchoolId = schoolId;
+          finalSchoolId = Array.isArray(assignedTeacher.schoolId) ? assignedTeacher.schoolId : (assignedTeacher.schoolId ? [assignedTeacher.schoolId] : []);
+        } else if (schoolId) {
+          finalSchoolId = Array.isArray(schoolId) ? schoolId : [schoolId];
         }
       } else if (schoolId) {
-        // If no teacherId, but schoolId is provided in body by root_admin
-        finalSchoolId = schoolId;
+        finalSchoolId = Array.isArray(schoolId) ? schoolId : [schoolId];
       }
     }
 
@@ -288,12 +341,21 @@ router.put('/:id', auth, subscriptionCheck, async (req, res) => {
       return res.status(404).json({ message: 'Classroom not found' });
     }
 
-    // Check permissions
-    // Unpublished classes can be edited by teacher, personal teacher, school admin, and root admin
-    // Published classes can only be edited by their teacher or admins
+    // Check managed schools for school admin
+    let hasAccess = false;
+    if (req.user.role === 'school_admin') {
+      const managedSchools = await School.find({ adminId: req.user._id }).select('_id');
+      const managedSchoolIds = managedSchools.map(s => s._id.toString());
+      const classSchoolIds = Array.isArray(classroom.schoolId)
+        ? classroom.schoolId.map(sid => sid.toString())
+        : (classroom.schoolId ? [classroom.schoolId.toString()] : []);
+
+      hasAccess = classSchoolIds.some(sid => managedSchoolIds.includes(sid));
+    }
+
     const canEdit =
       req.user.role === 'root_admin' ||
-      req.user.role === 'school_admin' ||
+      (req.user.role === 'school_admin' && hasAccess) ||
       (req.user.role === 'teacher' && classroom.teacherId.toString() === req.user._id.toString()) ||
       (req.user.role === 'personal_teacher' && classroom.teacherId.toString() === req.user._id.toString()) ||
       (!classroom.published && ['root_admin', 'school_admin', 'teacher', 'personal_teacher'].includes(req.user.role));
@@ -356,10 +418,21 @@ router.delete('/:id', auth, subscriptionCheck, async (req, res) => {
       return res.status(404).json({ message: 'Classroom not found' });
     }
 
-    // Check permissions
+    // Check managed schools for school admin
+    let hasAccess = false;
+    if (req.user.role === 'school_admin') {
+      const managedSchools = await School.find({ adminId: req.user._id }).select('_id');
+      const managedSchoolIds = managedSchools.map(s => s._id.toString());
+      const classSchoolIds = Array.isArray(classroom.schoolId)
+        ? classroom.schoolId.map(sid => sid.toString())
+        : (classroom.schoolId ? [classroom.schoolId.toString()] : []);
+
+      hasAccess = classSchoolIds.some(sid => managedSchoolIds.includes(sid));
+    }
+
     const canDelete =
       req.user.role === 'root_admin' ||
-      (req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString()) ||
+      (req.user.role === 'school_admin' && hasAccess) ||
       (req.user.role === 'teacher' && classroom.teacherId.toString() === req.user._id.toString()) ||
       (req.user.role === 'personal_teacher' && classroom.teacherId.toString() === req.user._id.toString());
 
@@ -383,10 +456,21 @@ router.put('/:id/publish', auth, authorize('root_admin', 'school_admin', 'person
       return res.status(404).json({ message: 'Classroom not found' });
     }
 
-    // Check permissions
+    // Check managed schools for school admin
+    let hasAccess = false;
+    if (req.user.role === 'school_admin') {
+      const managedSchools = await School.find({ adminId: req.user._id }).select('_id');
+      const managedSchoolIds = managedSchools.map(s => s._id.toString());
+      const classSchoolIds = Array.isArray(classroom.schoolId)
+        ? classroom.schoolId.map(sid => sid.toString())
+        : (classroom.schoolId ? [classroom.schoolId.toString()] : []);
+
+      hasAccess = classSchoolIds.some(sid => managedSchoolIds.includes(sid));
+    }
+
     const canPublish =
       req.user.role === 'root_admin' ||
-      (req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString()) ||
+      (req.user.role === 'school_admin' && hasAccess) ||
       (req.user.role === 'personal_teacher' && classroom.teacherId.toString() === req.user._id.toString());
 
     if (!canPublish) {
@@ -490,9 +574,21 @@ router.post('/:id/students', auth, authorize('root_admin', 'school_admin', 'pers
     }
 
     // Check permissions
+    // Check managed schools for school admin
+    let hasAccess = false;
+    if (req.user.role === 'school_admin') {
+      const managedSchools = await School.find({ adminId: req.user._id }).select('_id');
+      const managedSchoolIds = managedSchools.map(s => s._id.toString());
+      const classSchoolIds = (Array.isArray(classroom.schoolId) ? classroom.schoolId : [classroom.schoolId])
+        .filter(Boolean)
+        .map(sid => (sid._id || sid).toString());
+
+      hasAccess = classSchoolIds.some(sid => managedSchoolIds.includes(sid));
+    }
+
     const canManage =
       req.user.role === 'root_admin' ||
-      (req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString()) ||
+      (req.user.role === 'school_admin' && hasAccess) ||
       (req.user.role === 'personal_teacher' && classroom.teacherId._id.toString() === req.user._id.toString());
 
     if (!canManage) {
@@ -619,9 +715,17 @@ router.post('/:id/call/start', auth, subscriptionCheck, async (req, res) => {
     const isTeacherOwner = teacherIdStr && user._id.toString() === teacherIdStr;
     const isPersonalTeacherOwner = user.role === 'personal_teacher' && isTeacherOwner;
     const isRoot = user.role === 'root_admin';
-    const userSchoolId = Array.isArray(user.schoolId) ? (user.schoolId[0] && user.schoolId[0].toString()) : (user.schoolId && user.schoolId.toString && user.schoolId.toString());
-    const classSchoolId = classroom.schoolId?._id ? classroom.schoolId._id.toString() : (classroom.schoolId ? classroom.schoolId.toString() : null);
-    const isSchoolAdminOfClass = user.role === 'school_admin' && classSchoolId && userSchoolId && classSchoolId === userSchoolId;
+    // Check managed schools for school admin
+    let isSchoolAdminOfClass = false;
+    if (user.role === 'school_admin') {
+      const managedSchools = await School.find({ adminId: user._id }).select('_id');
+      const managedSchoolIds = managedSchools.map(s => s._id.toString());
+      const classSchoolIds = (Array.isArray(classroom.schoolId) ? classroom.schoolId : [classroom.schoolId])
+        .filter(Boolean)
+        .map(sid => (sid._id || sid).toString());
+
+      isSchoolAdminOfClass = classSchoolIds.some(sid => managedSchoolIds.includes(sid));
+    }
 
     if (!(isTeacherOwner || isPersonalTeacherOwner || isRoot || isSchoolAdminOfClass)) {
       return res.status(403).json({ message: 'Access denied. Only class teacher or admins can start the call.' });
@@ -713,9 +817,17 @@ router.get('/:id/call', auth, subscriptionCheck, async (req, res) => {
     const teacherIdStr = classroom.teacherId?._id ? classroom.teacherId._id.toString() : (classroom.teacherId ? classroom.teacherId.toString() : null);
     const isTeacherOwner = teacherIdStr && user._id.toString() === teacherIdStr;
     const isRoot = user.role === 'root_admin';
-    const userSchoolId = Array.isArray(user.schoolId) ? (user.schoolId[0] && user.schoolId[0].toString()) : (user.schoolId && user.schoolId.toString && user.schoolId.toString());
-    const classSchoolId = classroom.schoolId?._id ? classroom.schoolId._id.toString() : (classroom.schoolId ? classroom.schoolId.toString() : null);
-    const isSchoolAdminOfClass = user.role === 'school_admin' && classSchoolId && userSchoolId && classSchoolId === userSchoolId;
+    // Check managed schools for school admin
+    let isSchoolAdminOfClass = false;
+    if (user.role === 'school_admin') {
+      const managedSchools = await School.find({ adminId: user._id }).select('_id');
+      const managedSchoolIds = managedSchools.map(s => s._id.toString());
+      const classSchoolIds = (Array.isArray(classroom.schoolId) ? classroom.schoolId : [classroom.schoolId])
+        .filter(Boolean)
+        .map(sid => (sid._id || sid).toString());
+
+      isSchoolAdminOfClass = classSchoolIds.some(sid => managedSchoolIds.includes(sid));
+    }
     const isPersonalTeacherOwner = user.role === 'personal_teacher' && isTeacherOwner;
 
     if (!(enrolled || isTeacherOwner || isRoot || isSchoolAdminOfClass || isPersonalTeacherOwner)) {

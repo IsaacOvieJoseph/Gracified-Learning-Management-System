@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import { Calendar, FileText, CheckCircle, Plus, Book, Send, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import Layout from '../components/Layout';
 import api from '../utils/api';
@@ -54,7 +55,7 @@ const Assignments = () => {
       setFilteredAssignments(assignments);
     } else {
       const query = searchQuery.toLowerCase();
-      const filtered = assignments.filter(a => 
+      const filtered = assignments.filter(a =>
         a.title?.toLowerCase().includes(query) ||
         a.description?.toLowerCase().includes(query) ||
         a.topicId?.name?.toLowerCase().includes(query) ||
@@ -87,17 +88,23 @@ const Assignments = () => {
         } else if (user?.role === 'school_admin') {
           // Filter by selected school from dropdown, or all schools if none selected
           if (selectedSchools.length > 0) {
-            relevantClassrooms = relevantClassrooms.filter(c => 
-              selectedSchools.includes(c.schoolId?._id?.toString() || c.schoolId?.toString())
-            );
+            relevantClassrooms = relevantClassrooms.filter(c => {
+              const classroomSchoolIds = Array.isArray(c.schoolId)
+                ? c.schoolId.map(sid => (sid?._id || sid)?.toString())
+                : [c.schoolId?._id?.toString() || c.schoolId?.toString()];
+              return selectedSchools.some(selectedId => classroomSchoolIds.includes(selectedId));
+            });
           } else {
             // If no school selected, show all classrooms from admin's schools
-            const adminSchoolIds = Array.isArray(user?.schoolId) 
-              ? user.schoolId.map(id => id.toString()) 
+            const adminSchoolIds = Array.isArray(user?.schoolId)
+              ? user.schoolId.map(id => id.toString())
               : [user?.schoolId?.toString()];
-            relevantClassrooms = relevantClassrooms.filter(c => 
-              adminSchoolIds.includes(c.schoolId?._id?.toString() || c.schoolId?.toString())
-            );
+            relevantClassrooms = relevantClassrooms.filter(c => {
+              const classroomSchoolIds = Array.isArray(c.schoolId)
+                ? c.schoolId.map(sid => (sid?._id || sid)?.toString())
+                : [c.schoolId?._id?.toString() || c.schoolId?.toString()];
+              return classroomSchoolIds.some(sid => adminSchoolIds.includes(sid));
+            });
           }
         }
 
@@ -128,15 +135,15 @@ const Assignments = () => {
       } else if (user?.role === 'school_admin') {
         // Filter by selected school from dropdown, or all schools if none selected
         if (selectedSchools.length > 0) {
-          filteredClassrooms = filteredClassrooms.filter(c => 
+          filteredClassrooms = filteredClassrooms.filter(c =>
             selectedSchools.includes(c.schoolId?._id?.toString() || c.schoolId?.toString())
           );
         } else {
           // If no school selected, show all classrooms from admin's schools
-          const adminSchoolIds = Array.isArray(user?.schoolId) 
-            ? user.schoolId.map(id => id.toString()) 
+          const adminSchoolIds = Array.isArray(user?.schoolId)
+            ? user.schoolId.map(id => id.toString())
             : [user?.schoolId?.toString()];
-          filteredClassrooms = filteredClassrooms.filter(c => 
+          filteredClassrooms = filteredClassrooms.filter(c =>
             adminSchoolIds.includes(c.schoolId?._id?.toString() || c.schoolId?.toString())
           );
         }
@@ -167,9 +174,10 @@ const Assignments = () => {
       await api.post(`/assignments/${assignmentId}/submit`, { answers });
       setShowSubmitAssignmentModal(false);
       setAssignmentToSubmit(null);
+      toast.success('Assignment submitted successfully');
       fetchAssignments();
     } catch (error) {
-      alert(error.response?.data?.message || 'Error submitting assignment');
+      toast.error(error.response?.data?.message || 'Error submitting assignment');
     }
   };
 
@@ -226,9 +234,9 @@ const Assignments = () => {
               );
               const isSubmitted = !!submission;
               const isGraded = submission?.status === 'graded';
-              
+
               console.log(`Assignment: ${assignment.title}, isSubmitted: ${isSubmitted}, submission:`, submission, `user._id: ${user?._id}`);
-              
+
               const canViewSubmissions = canGradeAssignment && (assignment.submissions && assignment.submissions.length > 0);
 
               const isAssignmentExpanded = expandedAssignments.has(assignment._id);
@@ -246,7 +254,7 @@ const Assignments = () => {
 
               return (
                 <div key={assignment._id} className="bg-white rounded-lg shadow-md overflow-hidden">
-                  <div 
+                  <div
                     className="flex justify-between items-start p-6 cursor-pointer hover:bg-gray-50 transition"
                     onClick={toggleAssignmentExpanded}
                   >
@@ -299,27 +307,27 @@ const Assignments = () => {
                       </div>
 
                       <div className="flex items-center space-x-4 text-sm text-gray-600 mb-4">
-                    <div className="flex items-center">
-                      <Calendar className="w-4 h-4 mr-1" />
-                      Due: {assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'N/A'}
-                    </div>
-                    <div className="flex items-center">
-                      <FileText className="w-4 h-4 mr-1" />
-                      Max Score: {assignment.maxScore}
-                    </div>
-                    {assignment.assignmentType === 'mcq' && assignment.publishResultsAt && (
-                      <div className="flex items-center">
-                        <Book className="w-4 h-4 mr-1" />
-                        Results Publish: {new Date(assignment.publishResultsAt).toLocaleDateString()} {new Date(assignment.publishResultsAt).toLocaleTimeString()}
-                        {/* Only show "Pending" if results not published AND student hasn't submitted yet */}
-                        {new Date() < new Date(assignment.publishResultsAt) && !isSubmitted && (
-                          <span className="ml-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-semibold">
-                            Pending
-                          </span>
+                        <div className="flex items-center">
+                          <Calendar className="w-4 h-4 mr-1" />
+                          Due: {assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'N/A'}
+                        </div>
+                        <div className="flex items-center">
+                          <FileText className="w-4 h-4 mr-1" />
+                          Max Score: {assignment.maxScore}
+                        </div>
+                        {assignment.assignmentType === 'mcq' && assignment.publishResultsAt && (
+                          <div className="flex items-center">
+                            <Book className="w-4 h-4 mr-1" />
+                            Results Publish: {new Date(assignment.publishResultsAt).toLocaleDateString()} {new Date(assignment.publishResultsAt).toLocaleTimeString()}
+                            {/* Only show "Pending" if results not published AND student hasn't submitted yet */}
+                            {new Date() < new Date(assignment.publishResultsAt) && !isSubmitted && (
+                              <span className="ml-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-semibold">
+                                Pending
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
 
                       {user?.role === 'student' && isGraded && submission && (assignment.assignmentType === 'theory' || (assignment.assignmentType === 'mcq' && (!assignment.publishResultsAt || new Date() >= new Date(assignment.publishResultsAt)))) && (
                         <div className="bg-gray-50 rounded-lg p-4 mb-4">
@@ -340,8 +348,8 @@ const Assignments = () => {
                                   const questionGrade = submission.questionScores?.find(qs => qs.questionIndex === qIndex);
                                   return (
                                     <li key={qIndex}>
-                                      <strong>Q{qIndex + 1}:</strong> {q.questionText}<br/>
-                                      Your Answer: <span className="whitespace-pre-wrap">{submission.answers[qIndex]}</span><br/>
+                                      <strong>Q{qIndex + 1}:</strong> {q.questionText}<br />
+                                      Your Answer: <span className="whitespace-pre-wrap">{submission.answers[qIndex]}</span><br />
                                       {questionGrade && (
                                         <span className="ml-2 text-sm font-medium text-green-600">
                                           Score: {questionGrade.score}/{q.maxScore}
@@ -357,7 +365,7 @@ const Assignments = () => {
                               <ul className="list-disc list-inside text-gray-700">
                                 {assignment.questions.map((q, qIndex) => (
                                   <li key={qIndex}>
-                                    <strong>Q{qIndex + 1}:</strong> {q.questionText}<br/>
+                                    <strong>Q{qIndex + 1}:</strong> {q.questionText}<br />
                                     Your Answer: {submission.answers[qIndex]}
                                     {q.correctOption && (
                                       <span className={`ml-2 text-sm font-medium ${submission.answers[qIndex] === q.correctOption ? 'text-green-600' : 'text-red-600'}`}>
@@ -387,7 +395,7 @@ const Assignments = () => {
                               <ul className="list-disc list-inside text-gray-700">
                                 {assignment.questions.map((q, qIndex) => (
                                   <li key={qIndex}>
-                                    <strong>Q{qIndex + 1}:</strong> {q.questionText}<br/>
+                                    <strong>Q{qIndex + 1}:</strong> {q.questionText}<br />
                                     Your Answer: <span className="whitespace-pre-wrap">{submission.answers[qIndex]}</span>
                                   </li>
                                 ))}
@@ -400,7 +408,7 @@ const Assignments = () => {
                               <ul className="list-disc list-inside text-gray-700">
                                 {assignment.questions.map((q, qIndex) => (
                                   <li key={qIndex}>
-                                    <strong>Q{qIndex + 1}:</strong> {q.questionText}<br/>
+                                    <strong>Q{qIndex + 1}:</strong> {q.questionText}<br />
                                     Your Answer: {submission.answers[qIndex]}
                                   </li>
                                 ))}
@@ -411,16 +419,26 @@ const Assignments = () => {
                       )}
 
                       {user?.role === 'student' && !isSubmitted && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setAssignmentToSubmit(assignment);
-                            setShowSubmitAssignmentModal(true);
-                          }}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                        >
-                          Submit Assignment
-                        </button>
+                        (() => {
+                          const isPastDue = assignment.dueDate && new Date() > new Date(assignment.dueDate);
+                          return (
+                            <button
+                              onClick={(e) => {
+                                if (isPastDue) return;
+                                e.stopPropagation();
+                                setAssignmentToSubmit(assignment);
+                                setShowSubmitAssignmentModal(true);
+                              }}
+                              disabled={isPastDue}
+                              className={`px-4 py-2 rounded-lg transition ${isPastDue
+                                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                                : 'bg-blue-600 text-white hover:bg-blue-700'
+                                }`}
+                            >
+                              {isPastDue ? 'Deadline Passed' : 'Submit Assignment'}
+                            </button>
+                          );
+                        })()
                       )}
 
                       {/* Teacher/Admin: View and Grade Submissions */}
@@ -444,7 +462,7 @@ const Assignments = () => {
 
                               return (
                                 <div key={sub._id} className="border rounded-lg mb-2 bg-gray-50 overflow-hidden">
-                                  <div 
+                                  <div
                                     className="flex justify-between items-center p-3 cursor-pointer hover:bg-gray-100 transition"
                                     onClick={toggleExpanded}
                                   >

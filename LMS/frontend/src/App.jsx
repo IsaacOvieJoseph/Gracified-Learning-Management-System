@@ -19,14 +19,16 @@ import RegisterPersonalTeacher from './pages/RegisterPersonalTeacher';
 import VerifyEmail from './pages/VerifyEmail';
 import SubscriptionManagement from './pages/SubscriptionManagement'; // Import new SubscriptionManagement component
 import ForgotPassword from './pages/ForgotPassword';
+import { Toaster } from 'react-hot-toast';
+import Loader from './components/Loader';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
-  
+
   if (!user) {
     return <Navigate to="/login" />;
   }
@@ -96,24 +98,24 @@ const AppRoutes = () => {
       />
 
 
-<Route 
-  path="/schools" 
-  element={
-    <PrivateRoute>
-      <SchoolsPage />
-    </PrivateRoute>
-  } 
-/>
+      <Route
+        path="/schools"
+        element={
+          <PrivateRoute>
+            <SchoolsPage />
+          </PrivateRoute>
+        }
+      />
 
 
-<Route 
-  path="/schools/:id"
-  element={
-    <PrivateRoute>
-      <SchoolDetails />
-    </PrivateRoute>
-    }
-/>
+      <Route
+        path="/schools/:id"
+        element={
+          <PrivateRoute>
+            <SchoolDetails />
+          </PrivateRoute>
+        }
+      />
 
 
 
@@ -179,6 +181,43 @@ const AppRoutes = () => {
 };
 
 function App() {
+  const [loadingCount, setLoadingCount] = React.useState(0);
+  const [visible, setVisible] = React.useState(false);
+  const timeoutRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const startLoading = () => {
+      setLoadingCount(prev => prev + 1);
+      setVisible(true);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+
+    const stopLoading = () => {
+      setLoadingCount(prev => {
+        const newCount = Math.max(0, prev - 1);
+        if (newCount === 0) {
+          // Add a tiny delay before hiding to bridge fast sequential requests
+          timeoutRef.current = setTimeout(() => {
+            setVisible(false);
+          }, 150);
+        }
+        return newCount;
+      });
+    };
+
+    window.addEventListener('loading-start', startLoading);
+    window.addEventListener('loading-end', stopLoading);
+
+    return () => {
+      window.removeEventListener('loading-start', startLoading);
+      window.removeEventListener('loading-end', stopLoading);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
   return (
     <ErrorBoundary>
       <AuthProvider>
@@ -186,6 +225,8 @@ function App() {
           <AppRoutes />
         </Router>
       </AuthProvider>
+      <Toaster position="top-right" reverseOrder={false} />
+      {visible && <Loader />}
     </ErrorBoundary>
   );
 }

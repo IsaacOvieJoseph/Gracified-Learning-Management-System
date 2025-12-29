@@ -23,14 +23,35 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // Skip loading event for non-blocking calls if needed (e.g. notifications, auth check, whiteboard polling)
+  const isBackgroundCall =
+    config.url.includes('/notifications') ||
+    config.url.includes('/auth/me') ||
+    config.url.includes('/whiteboard');
+
+  if (!isBackgroundCall) {
+    window.dispatchEvent(new CustomEvent('loading-start'));
+    // Attach flag to config so interceptor knows whether to fire loading-end
+    config._showLoader = true;
+  }
+
   console.log('API Interceptor: Sending request to', config.url, 'with Authorization header:', config.headers.Authorization ? 'present' : 'missing');
   return config;
 });
 
 // Handle token expiration and connection errors
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.config?._showLoader) {
+      window.dispatchEvent(new CustomEvent('loading-end'));
+    }
+    return response;
+  },
   (error) => {
+    if (error.config?._showLoader) {
+      window.dispatchEvent(new CustomEvent('loading-end'));
+    }
     // Log connection errors for debugging
     if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
       console.error('Request timeout - Backend may be slow or unavailable:', error.config?.url);
@@ -40,7 +61,7 @@ api.interceptors.response.use(
       console.error('API URL being used:', API_URL);
       console.error('Check if backend is running and CORS is configured correctly');
     }
-    
+
     if (error.response?.status === 401) {
       // Only redirect if not already on login page and not during token verification
       // Let AuthContext handle the logout/redirect logic to avoid conflicts

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import { useSearchParams } from 'react-router-dom';
 import { DollarSign, CheckCircle, XCircle, Clock } from 'lucide-react';
 import Layout from '../components/Layout';
@@ -71,7 +72,7 @@ const Payments = () => {
               (async () => {
                 try {
                   await api.get(`/payments/paystack/verify?reference=${encodeURIComponent(response.reference)}`);
-                  alert('Payment successful! You are now enrolled.');
+                  toast.success('Payment successful! You are now enrolled.');
                   setShowPaymentModal(false);
                   fetchPayments();
                   window.location.href = `/classrooms/${classroomId}`;
@@ -134,7 +135,7 @@ const Payments = () => {
         amount
       });
 
-      alert('Payment successful! You are now enrolled.');
+      toast.success('Payment successful! You are now enrolled.');
       setShowPaymentModal(false);
       fetchPayments();
       window.location.href = `/classrooms/${classroomId}`;
@@ -166,14 +167,14 @@ const Payments = () => {
       (async () => {
         try {
           const verifyRes = await api.get(`/payments/paystack/verify?reference=${encodeURIComponent(reference)}`);
-          alert('Payment successful! You are now enrolled.');
+          toast.success('Payment successful! You are now enrolled.');
           // clear reference from URL
           params.delete('reference');
           window.history.replaceState({}, document.title, window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
           fetchPayments();
           if (cbClassroomId) window.location.href = `/classrooms/${cbClassroomId}`;
         } catch (err) {
-          alert(err.response?.data?.message || 'Payment verification failed');
+          toast.error(err.response?.data?.message || 'Payment verification failed');
         }
       })();
     }
@@ -202,7 +203,7 @@ const Payments = () => {
       {/* Payment modal shown when navigating to payments?classroomId=... */}
       {showPaymentModal && classroomForPayment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 overflow-y-auto max-h-[90vh]">
             <h3 className="text-lg font-bold mb-2">Pay to Enroll</h3>
             <p className="text-sm text-gray-600 mb-4">You're about to enroll in <strong>{classroomForPayment.name}</strong>.</p>
             <div className="mb-4">
@@ -227,13 +228,13 @@ const Payments = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date / Time</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class/Topic</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                </tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date / Time</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class/Topic</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {payments.length > 0 ? (
@@ -262,7 +263,7 @@ const Payments = () => {
                     </td>
                   </tr>
                 ))
-                ) : (
+              ) : (
                 <tr>
                   <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
                     No payment history yet
