@@ -58,7 +58,7 @@ const connectDB = async () => {
     // Fix case sensitivity issue - use lowercase 'lms'
     let mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/lms';
     mongoUri = mongoUri.replace(/\/LMS$/, '/lms');
-    
+
     await mongoose.connect(mongoUri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
@@ -112,6 +112,9 @@ io.on('connection', (socket) => {
       }
       const sessionId = whiteboardSessions.addClient(classId, socket.id);
       socket.join(sessionId);
+
+      // Update Classroom whiteboard activity in DB for multi-instance discovery
+      await Classroom.findByIdAndUpdate(classId, { whiteboardActiveAt: new Date() });
       // assign a display color for presence cursor
       const color = `hsl(${Math.floor(Math.abs(hashCode(socket.data.user._id.toString())) % 360)},70%,40%)`;
       socket.data = { ...socket.data, classId, sessionId, isTeacher: !!isTeacher, color };
@@ -178,81 +181,81 @@ io.on('connection', (socket) => {
     socket.leave(sessionId || socket.id);
   });
 
-    socket.on('wb:draw', (data) => {
-      const { classId, sessionId } = socket.data || {};
-      if (!classId || !sessionId) return;
-      if (whiteboardSessions.isLocked(classId) && !socket.data.isTeacher) return;
-      socket.to(sessionId).emit('wb:draw', data);
-      // persist stroke unless client marks it as ephemeral (we support client-side batching)
-      if (!data || data.persist !== false) {
-        (async () => {
-          try {
-            const stroke = {
-              ...(data || {}),
-              _id: data && (data.id || data._id) ? (data.id || data._id) : randomUUID(),
-              userId: socket.data.user ? socket.data.user._id : null,
-              ts: new Date(),
-            };
-            await Whiteboard.findOneAndUpdate(
-              { classId },
-              { $push: { strokes: stroke } },
-              { upsert: true }
-            );
-          } catch (err) {
-            console.error('Error persisting stroke', err.message);
-          }
-        })();
-      }
-    });
-
-    // receive bulk strokes (client-side batching flush)
-    socket.on('wb:draw-bulk', (payload) => {
-      const { strokes } = payload || {};
-      const { classId, sessionId } = socket.data || {};
-      if (!classId || !sessionId) return;
-      if (!Array.isArray(strokes) || strokes.length === 0) return;
-      if (whiteboardSessions.isLocked(classId) && !socket.data.isTeacher) return;
-      // NOTE: do not re-broadcast bulk strokes (clients already received real-time per-stroke events)
-      // persist in bulk
+  socket.on('wb:draw', (data) => {
+    const { classId, sessionId } = socket.data || {};
+    if (!classId || !sessionId) return;
+    if (whiteboardSessions.isLocked(classId) && !socket.data.isTeacher) return;
+    socket.to(sessionId).emit('wb:draw', data);
+    // persist stroke unless client marks it as ephemeral (we support client-side batching)
+    if (!data || data.persist !== false) {
       (async () => {
         try {
-          const strokesToSave = strokes.map(s => ({
-            ...s,
-            _id: s && (s.id || s._id) ? (s.id || s._id) : randomUUID(),
+          const stroke = {
+            ...(data || {}),
+            _id: data && (data.id || data._id) ? (data.id || data._id) : randomUUID(),
             userId: socket.data.user ? socket.data.user._id : null,
-            ts: s.ts ? new Date(s.ts) : new Date(),
-          }));
-          await Whiteboard.updateOne(
+            ts: new Date(),
+          };
+          await Whiteboard.findOneAndUpdate(
             { classId },
-            { $push: { strokes: { $each: strokesToSave } } },
+            { $push: { strokes: stroke } },
             { upsert: true }
           );
         } catch (err) {
-          console.error('Error persisting bulk strokes', err.message);
+          console.error('Error persisting stroke', err.message);
         }
       })();
-    });
+    }
+  });
 
-    // remove a stroke (undo) - validated by creator or teacher
-    socket.on('wb:remove-stroke', async ({ strokeId }) => {
-      const { classId, sessionId } = socket.data || {};
-      if (!classId || !sessionId || !strokeId) return;
+  // receive bulk strokes (client-side batching flush)
+  socket.on('wb:draw-bulk', (payload) => {
+    const { strokes } = payload || {};
+    const { classId, sessionId } = socket.data || {};
+    if (!classId || !sessionId) return;
+    if (!Array.isArray(strokes) || strokes.length === 0) return;
+    if (whiteboardSessions.isLocked(classId) && !socket.data.isTeacher) return;
+    // NOTE: do not re-broadcast bulk strokes (clients already received real-time per-stroke events)
+    // persist in bulk
+    (async () => {
       try {
-        // find the stroke owner
-        const wb = await Whiteboard.findOne({ classId, 'strokes._id': strokeId }, { 'strokes.$': 1 });
-        if (!wb || !wb.strokes || wb.strokes.length === 0) return;
-        const stroke = wb.strokes[0];
-        const ownerId = stroke.userId ? stroke.userId.toString() : null;
-        const requesterId = socket.data.user ? socket.data.user._id.toString() : null;
-        const allowed = socket.data.isTeacher || (ownerId && requesterId && ownerId === requesterId);
-        if (!allowed) return;
-        await Whiteboard.updateOne({ classId }, { $pull: { strokes: { _id: strokeId } } });
-        const s = whiteboardSessions.getSession(classId);
-        if (s) io.to(s.sessionId).emit('wb:remove-stroke', { strokeId });
+        const strokesToSave = strokes.map(s => ({
+          ...s,
+          _id: s && (s.id || s._id) ? (s.id || s._id) : randomUUID(),
+          userId: socket.data.user ? socket.data.user._id : null,
+          ts: s.ts ? new Date(s.ts) : new Date(),
+        }));
+        await Whiteboard.updateOne(
+          { classId },
+          { $push: { strokes: { $each: strokesToSave } } },
+          { upsert: true }
+        );
       } catch (err) {
-        console.error('Error removing stroke', err.message);
+        console.error('Error persisting bulk strokes', err.message);
       }
-    });
+    })();
+  });
+
+  // remove a stroke (undo) - validated by creator or teacher
+  socket.on('wb:remove-stroke', async ({ strokeId }) => {
+    const { classId, sessionId } = socket.data || {};
+    if (!classId || !sessionId || !strokeId) return;
+    try {
+      // find the stroke owner
+      const wb = await Whiteboard.findOne({ classId, 'strokes._id': strokeId }, { 'strokes.$': 1 });
+      if (!wb || !wb.strokes || wb.strokes.length === 0) return;
+      const stroke = wb.strokes[0];
+      const ownerId = stroke.userId ? stroke.userId.toString() : null;
+      const requesterId = socket.data.user ? socket.data.user._id.toString() : null;
+      const allowed = socket.data.isTeacher || (ownerId && requesterId && ownerId === requesterId);
+      if (!allowed) return;
+      await Whiteboard.updateOne({ classId }, { $pull: { strokes: { _id: strokeId } } });
+      const s = whiteboardSessions.getSession(classId);
+      if (s) io.to(s.sessionId).emit('wb:remove-stroke', { strokeId });
+    } catch (err) {
+      console.error('Error removing stroke', err.message);
+    }
+  });
 
   socket.on('wb:clear', () => {
     const { classId } = socket.data || {};

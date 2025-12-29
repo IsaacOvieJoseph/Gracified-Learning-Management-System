@@ -15,9 +15,10 @@ router.get('/:classroomId', auth, async (req, res) => {
     }
 
     // Check permissions: enrolled, teacher, or admins
-    const isEnrolled = Array.isArray(classroom.students) && classroom.students.some(
+    const isEnrolled = (Array.isArray(classroom.students) && classroom.students.some(
       student => student.toString() === req.user._id.toString()
-    );
+    )) || (req.user.enrolledClasses && req.user.enrolledClasses.some(id => id.toString() === classroom._id.toString()));
+
     const isTeacher = classroom.teacherId && classroom.teacherId.toString() === req.user._id.toString();
 
     if (!isEnrolled && !isTeacher && req.user.role !== 'root_admin' && req.user.role !== 'school_admin') {
@@ -27,6 +28,13 @@ router.get('/:classroomId', auth, async (req, res) => {
     const session = whiteboardSessions.getSession(classroom._id.toString());
     if (session) {
       return res.json({ sessionId: session.sessionId, active: session.clients.size, locked: session.locked });
+    }
+
+    // fallback to DB activity status (e.g. if teacher is on another process instance)
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    if (classroom.whiteboardActiveAt && classroom.whiteboardActiveAt > fifteenMinutesAgo) {
+      // Return a stable sessionId based on classroomId so student joins the same "room"
+      return res.json({ sessionId: classroom._id.toString(), active: 1, locked: false });
     }
 
     // fallback to stored whiteboardUrl if any
@@ -47,7 +55,7 @@ router.post('/:classroomId/publish', auth, async (req, res) => {
     const classroom = await Classroom.findById(req.params.classroomId);
     if (!classroom) return res.status(404).json({ message: 'Classroom not found' });
 
-    const canCreate = 
+    const canCreate =
       req.user.role === 'root_admin' ||
       (req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString()) ||
       (classroom.teacherId && classroom.teacherId.toString() === req.user._id.toString());

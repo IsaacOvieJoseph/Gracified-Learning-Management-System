@@ -76,6 +76,10 @@ const classroomSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  whiteboardActiveAt: {
+    type: Date,
+    default: null
+  },
   published: {
     type: Boolean,
     default: false
