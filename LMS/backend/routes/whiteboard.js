@@ -31,8 +31,8 @@ router.get('/:classroomId', auth, async (req, res) => {
     }
 
     // fallback to DB activity status (e.g. if teacher is on another process instance)
-    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
-    if (classroom.whiteboardActiveAt && classroom.whiteboardActiveAt > fifteenMinutesAgo) {
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    if (classroom.whiteboardActiveAt && classroom.whiteboardActiveAt > thirtyMinutesAgo) {
       // Return a stable sessionId based on classroomId so student joins the same "room"
       return res.json({ sessionId: classroom._id.toString(), active: 1, locked: false });
     }

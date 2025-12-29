@@ -110,11 +110,22 @@ io.on('connection', (socket) => {
       } catch (e) {
         // ignore classroom lookup errors
       }
+
+      console.log(`Whiteboard session join: classId=${classId}, user=${socket.data.user?.email} (${socket.data.user?._id})`);
       const sessionId = whiteboardSessions.addClient(classId, socket.id);
       socket.join(sessionId);
 
       // Update Classroom whiteboard activity in DB for multi-instance discovery
       await Classroom.findByIdAndUpdate(classId, { whiteboardActiveAt: new Date() });
+
+      // Start a heartbeat for this socket/session to keep DB status active
+      const heartbeat = setInterval(async () => {
+        try {
+          await Classroom.findByIdAndUpdate(classId, { whiteboardActiveAt: new Date() });
+        } catch (e) { }
+      }, 2 * 60 * 1000); // every 2 mins
+      socket._wbHeartbeat = heartbeat;
+
       // assign a display color for presence cursor
       const color = `hsl(${Math.floor(Math.abs(hashCode(socket.data.user._id.toString())) % 360)},70%,40%)`;
       socket.data = { ...socket.data, classId, sessionId, isTeacher: !!isTeacher, color };
@@ -172,6 +183,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('wb:leave', () => {
+    if (socket._wbHeartbeat) clearInterval(socket._wbHeartbeat);
     const { classId, sessionId } = socket.data || {};
     if (!classId) return;
     whiteboardSessions.removeClient(classId, socket.id);
@@ -283,6 +295,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    if (socket._wbHeartbeat) clearInterval(socket._wbHeartbeat);
     const { classId } = socket.data || {};
     if (!classId) return;
     whiteboardSessions.removeClient(classId, socket.id);

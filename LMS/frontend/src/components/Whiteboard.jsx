@@ -3,7 +3,9 @@ import { io } from 'socket.io-client';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const SOCKET_URL = import.meta.env.VITE_API_WS_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const DEFAULT_SOCKET_URL = API_URL.replace(/\/api$/, '');
+const SOCKET_URL = import.meta.env.VITE_API_WS_URL || DEFAULT_SOCKET_URL;
 
 export default function Whiteboard() {
   const { classId: paramClassId } = useParams();
@@ -35,7 +37,7 @@ export default function Whiteboard() {
 
   const generateId = () => {
     if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
-    return `id_${Date.now()}_${Math.floor(Math.random()*100000)}`;
+    return `id_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
   };
 
   const pushToBuffer = (stroke) => {
@@ -110,7 +112,7 @@ export default function Whiteboard() {
     };
 
     const token = localStorage.getItem('token') || '';
-    const socket = io(SOCKET_URL, { transports: ['websocket'], auth: { token: token ? `Bearer ${token}` : '' } });
+    const socket = io(SOCKET_URL, { auth: { token: token ? `Bearer ${token}` : '' } });
     socketRef.current = socket;
     socket.emit('wb:join', { classId });
 
@@ -191,7 +193,7 @@ export default function Whiteboard() {
     return () => {
       clearInterval(cleanupInterval);
       if (flushIntervalRef.current) clearInterval(flushIntervalRef.current);
-      try { flushBuffer(); } catch (e) {}
+      try { flushBuffer(); } catch (e) { }
       socket.emit('wb:leave');
       socket.disconnect();
     };
@@ -525,20 +527,20 @@ export default function Whiteboard() {
         <div style={{ display: 'flex', gap: 8, marginLeft: 12 }}>
           {isTeacher && (
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <button onClick={() => setTool('pointer')} title="Pointer" className={`px-2 py-1 rounded ${tool==='pointer' ? 'bg-gray-200' : 'bg-white'}`}>☝️</button>
-              <button onClick={() => setTool('pen')} title="Pen" className={`px-2 py-1 rounded ${tool==='pen' ? 'bg-gray-200' : 'bg-white'}`}>✏️</button>
-              <button onClick={() => setTool('eraser')} title="Eraser" className={`px-2 py-1 rounded ${tool==='eraser' ? 'bg-gray-200' : 'bg-white'}`}>🧽</button>
-              <button onClick={() => setTool('rect')} title="Rectangle" className={`px-2 py-1 rounded ${tool==='rect' ? 'bg-gray-200' : 'bg-white'}`}>▭</button>
-              <button onClick={() => setTool('circle')} title="Circle" className={`px-2 py-1 rounded ${tool==='circle' ? 'bg-gray-200' : 'bg-white'}`}>◯</button>
-              <button onClick={() => setTool('text')} title="Text" className={`px-2 py-1 rounded ${tool==='text' ? 'bg-gray-200' : 'bg-white'}`}>T</button>
+              <button onClick={() => setTool('pointer')} title="Pointer" className={`px-2 py-1 rounded ${tool === 'pointer' ? 'bg-gray-200' : 'bg-white'}`}>☝️</button>
+              <button onClick={() => setTool('pen')} title="Pen" className={`px-2 py-1 rounded ${tool === 'pen' ? 'bg-gray-200' : 'bg-white'}`}>✏️</button>
+              <button onClick={() => setTool('eraser')} title="Eraser" className={`px-2 py-1 rounded ${tool === 'eraser' ? 'bg-gray-200' : 'bg-white'}`}>🧽</button>
+              <button onClick={() => setTool('rect')} title="Rectangle" className={`px-2 py-1 rounded ${tool === 'rect' ? 'bg-gray-200' : 'bg-white'}`}>▭</button>
+              <button onClick={() => setTool('circle')} title="Circle" className={`px-2 py-1 rounded ${tool === 'circle' ? 'bg-gray-200' : 'bg-white'}`}>◯</button>
+              <button onClick={() => setTool('text')} title="Text" className={`px-2 py-1 rounded ${tool === 'text' ? 'bg-gray-200' : 'bg-white'}`}>T</button>
               <div style={{ display: 'flex', gap: 4, marginLeft: 8 }}>
-                {['#000000','#ff0000','#00ff00','#0000ff','#ffff00','#ff00ff','#00ffff','#ffffff'].map(c=> (
-                  <button key={c} onClick={()=>setColor(c)} style={{ width:20, height:20, background:c, border: c==='#ffffff' ? '1px solid #ccc' : 'none' }} />
+                {['#000000', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffffff'].map(c => (
+                  <button key={c} onClick={() => setColor(c)} style={{ width: 20, height: 20, background: c, border: c === '#ffffff' ? '1px solid #ccc' : 'none' }} />
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 12 }}>
-                <button onClick={() => { if (undoStackRef.current.length>0) { const s = undoStackRef.current.pop(); redoStackRef.current.push(s); socketRef.current.emit('wb:remove-stroke', { strokeId: s._id || s.id }); strokeHistoryRef.current = strokeHistoryRef.current.filter(x => (x._id||x.id) !== (s._id||s.id)); redrawAll(); } }} title="Undo" className="px-2 py-1 rounded bg-white">↶</button>
-                <button onClick={() => { if (redoStackRef.current.length>0) { const s = redoStackRef.current.pop(); renderStroke(s, false); pushToBuffer(s); socketRef.current.emit('wb:draw', { ...s, persist: false }); } }} title="Redo" className="px-2 py-1 rounded bg-white">↷</button>
+                <button onClick={() => { if (undoStackRef.current.length > 0) { const s = undoStackRef.current.pop(); redoStackRef.current.push(s); socketRef.current.emit('wb:remove-stroke', { strokeId: s._id || s.id }); strokeHistoryRef.current = strokeHistoryRef.current.filter(x => (x._id || x.id) !== (s._id || s.id)); redrawAll(); } }} title="Undo" className="px-2 py-1 rounded bg-white">↶</button>
+                <button onClick={() => { if (redoStackRef.current.length > 0) { const s = redoStackRef.current.pop(); renderStroke(s, false); pushToBuffer(s); socketRef.current.emit('wb:draw', { ...s, persist: false }); } }} title="Redo" className="px-2 py-1 rounded bg-white">↷</button>
                 <button onClick={onExportPNG} title="Export PNG" className="px-2 py-1 rounded bg-white">Export PNG</button>
               </div>
             </div>
@@ -552,11 +554,11 @@ export default function Whiteboard() {
           style={{ width: '100%', height: `${canvasHeightRef.current}px`, border: '1px solid #e5e7eb', touchAction: 'none', display: 'block' }}
           onMouseDown={handlePointerDown}
           onMouseMove={handlePointerMove}
-          onMouseUp={(e)=>handlePointerUp(e)}
-          onMouseLeave={(e)=>handlePointerUp(e)}
+          onMouseUp={(e) => handlePointerUp(e)}
+          onMouseLeave={(e) => handlePointerUp(e)}
           onTouchStart={handlePointerDown}
           onTouchMove={handlePointerMove}
-          onTouchEnd={(e)=>handlePointerUp(e)}
+          onTouchEnd={(e) => handlePointerUp(e)}
         />
         {/* overlay canvas for previews */}
         <canvas ref={overlayRef} style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', width: '100%', height: `${canvasHeightRef.current}px` }} />
@@ -566,9 +568,9 @@ export default function Whiteboard() {
           <input
             autoFocus
             value={textInput.value}
-            onChange={(e)=>setTextInput(t=>({ ...t, value: e.target.value }))}
-            onKeyDown={(e)=>{ if (e.key==='Enter') submitTextInput(); if (e.key==='Escape') setTextInput({ visible: false, x:0, y:0, value: '' }); }}
-            onBlur={()=>submitTextInput()}
+            onChange={(e) => setTextInput(t => ({ ...t, value: e.target.value }))}
+            onKeyDown={(e) => { if (e.key === 'Enter') submitTextInput(); if (e.key === 'Escape') setTextInput({ visible: false, x: 0, y: 0, value: '' }); }}
+            onBlur={() => submitTextInput()}
             style={{ position: 'absolute', left: textInput.x, top: textInput.y, zIndex: 60, padding: 6, fontSize: textInput.fontSize, minWidth: 120 }}
           />
         )}
