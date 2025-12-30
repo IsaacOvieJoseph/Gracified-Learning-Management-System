@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { School } from 'lucide-react';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -69,12 +70,19 @@ const RegisterSchoolAdmin = () => {
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold text-center text-gray-900">Register as School Admin</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+      <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 w-full max-w-md transform transition-all hover:scale-[1.01]">
+        <div className="text-center mb-8">
+          <div className="bg-indigo-100 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 transform rotate-3 hover:rotate-6 transition-transform duration-300">
+            <School className="w-10 h-10 text-indigo-600" />
+          </div>
+          <h2 className="text-3xl font-extrabold text-gray-900 mb-2">School Admin</h2>
+          <p className="text-gray-600">Register your school to get started</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700">Name</label>
+            <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2 ml-1">Full Name</label>
             <input
               type="text"
               id="name"
@@ -82,11 +90,12 @@ const RegisterSchoolAdmin = () => {
               value={formData.name}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 outline-none"
+              placeholder="John Doe"
             />
           </div>
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
+            <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2 ml-1">Email Address</label>
             <input
               type="email"
               id="email"
@@ -94,98 +103,135 @@ const RegisterSchoolAdmin = () => {
               value={formData.email}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 outline-none"
+              placeholder="admin@school.com"
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
+            <label htmlFor="schoolName" className="block text-sm font-semibold text-gray-700 mb-2 ml-1">School Name</label>
             <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
+              type="text"
+              id="schoolName"
+              name="schoolName"
+              value={formData.schoolName}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">Confirm Password</label>
-            <input
-              type="password"
-              id="confirmPassword"
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              required
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 outline-none"
+              placeholder="Excellence Academy"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="bankName" className="block text-sm font-medium text-gray-700">Bank Name</label>
+              <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2 ml-1">Password</label>
               <input
-                type="text"
-                id="bankName"
-                name="bankName"
-                value={formData.bankName}
+                type="password"
+                id="password"
+                name="password"
+                value={formData.password}
                 onChange={handleChange}
                 required
-                className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 outline-none"
+                placeholder="••••••••"
               />
             </div>
             <div>
-              <label htmlFor="accountNumber" className="block text-sm font-medium text-gray-700">Account Number</label>
+              <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700 mb-2 ml-1">Confirm</label>
               <input
-                type="text"
-                id="accountNumber"
-                name="accountNumber"
-                value={formData.accountNumber}
+                type="password"
+                id="confirmPassword"
+                name="confirmPassword"
+                value={formData.confirmPassword}
                 onChange={handleChange}
                 required
-                className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 outline-none"
+                placeholder="••••••••"
               />
             </div>
           </div>
-          <div>
-            <label htmlFor="accountName" className="block text-sm font-medium text-gray-700">Account Name</label>
-            <input
-              type="text"
-              id="accountName"
-              name="accountName"
-              value={formData.accountName}
-              onChange={handleChange}
-              required
-              placeholder="As it appears on your bank account"
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-            />
+
+          <div className="pt-4 border-t border-gray-100">
+            <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">Payout Details</h3>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label htmlFor="bankName" className="block text-sm font-semibold text-gray-700 mb-2 ml-1">Bank Name</label>
+                <input
+                  type="text"
+                  id="bankName"
+                  name="bankName"
+                  value={formData.bankName}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 outline-none"
+                />
+              </div>
+              <div>
+                <label htmlFor="accountNumber" className="block text-sm font-semibold text-gray-700 mb-2 ml-1">Account No.</label>
+                <input
+                  type="text"
+                  id="accountNumber"
+                  name="accountNumber"
+                  value={formData.accountNumber}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 outline-none"
+                />
+              </div>
+            </div>
+            <div className="mb-4">
+              <label htmlFor="accountName" className="block text-sm font-semibold text-gray-700 mb-2 ml-1">Account Name</label>
+              <input
+                type="text"
+                id="accountName"
+                name="accountName"
+                value={formData.accountName}
+                onChange={handleChange}
+                required
+                placeholder="As it appears on your bank account"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 outline-none"
+              />
+            </div>
+            <div>
+              <label htmlFor="payoutFrequency" className="block text-sm font-semibold text-gray-700 mb-2 ml-1">Payout Frequency</label>
+              <div className="relative">
+                <select
+                  id="payoutFrequency"
+                  name="payoutFrequency"
+                  value={formData.payoutFrequency}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 outline-none appearance-none"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+              </div>
+            </div>
           </div>
-          <div>
-            <label htmlFor="payoutFrequency" className="block text-sm font-medium text-gray-700">Payout Frequency</label>
-            <select
-              id="payoutFrequency"
-              name="payoutFrequency"
-              value={formData.payoutFrequency}
-              onChange={handleChange}
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          {message && <p className="text-green-500 text-sm">{message}</p>}
+
+          {error && (
+            <div className="p-4 rounded-xl bg-red-50 border-l-4 border-red-500 text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+          {message && (
+            <div className="p-4 rounded-xl bg-green-50 border-l-4 border-green-500 text-green-700 text-sm">
+              {message}
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-4 py-2 text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            className="w-full py-3.5 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl transform transition-all duration-200 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {loading ? 'Registering...' : 'Register'}
+            {loading ? 'Registering...' : 'Complete Registration'}
           </button>
         </form>
-        <p className="text-sm text-center text-gray-600">
-          Already have an account? <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500">Login</Link>
+        <p className="mt-8 text-center text-gray-600">
+          Already have an account? <Link to="/login" className="font-bold text-indigo-600 hover:text-indigo-500 transition-colors">Log In</Link>
         </p>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { GraduationCap, School, User } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
@@ -53,23 +54,62 @@ const RegisterChoice = () => {
   if (user) return <Navigate to="/dashboard" />;
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold text-center text-gray-900">Choose Your Role to Register</h2>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-lg bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 transform transition-all">
+        <div className="text-center mb-10">
+          <h2 className="text-3xl font-extrabold text-gray-900 mb-2">Join Our Platform</h2>
+          <p className="text-gray-600">Choose your role to get started</p>
+        </div>
+
         <div className="space-y-4">
-          <Link to="/register/student" className="block w-full px-4 py-2 text-white bg-indigo-600 rounded-md text-center hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-            Register as Student
+          <Link to="/register/student" className="group relative flex items-center justify-between p-4 border-2 border-transparent bg-indigo-50 rounded-xl hover:bg-white hover:border-indigo-500 hover:shadow-lg transition-all duration-300">
+            <div className="flex items-center space-x-4">
+              <div className="bg-indigo-100 p-3 rounded-lg group-hover:bg-indigo-600 transition-colors duration-300">
+                <GraduationCap className="w-6 h-6 text-indigo-600 group-hover:text-white transition-colors duration-300" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-800">Student</h3>
+                <p className="text-sm text-gray-500">Access courses and assignments</p>
+              </div>
+            </div>
+            <div className="text-indigo-600 opacity-0 group-hover:opacity-100 transform translate-x-[-10px] group-hover:translate-x-0 transition-all duration-300">→</div>
           </Link>
-          <Link to="/register/school-admin" className="block w-full px-4 py-2 text-white bg-green-600 rounded-md text-center hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-            Register as School Admin
+
+          <Link to="/register/school-admin" className="group relative flex items-center justify-between p-4 border-2 border-transparent bg-green-50 rounded-xl hover:bg-white hover:border-green-500 hover:shadow-lg transition-all duration-300">
+            <div className="flex items-center space-x-4">
+              <div className="bg-green-100 p-3 rounded-lg group-hover:bg-green-600 transition-colors duration-300">
+                <School className="w-6 h-6 text-green-600 group-hover:text-white transition-colors duration-300" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-800">School Admin</h3>
+                <p className="text-sm text-gray-500">Manage school and classes</p>
+              </div>
+            </div>
+            <div className="text-green-600 opacity-0 group-hover:opacity-100 transform translate-x-[-10px] group-hover:translate-x-0 transition-all duration-300">→</div>
           </Link>
-          <Link to="/register/personal-teacher" className="block w-full px-4 py-2 text-white bg-purple-600 rounded-md text-center hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
-            Register as Personal Teacher
+
+          <Link to="/register/personal-teacher" className="group relative flex items-center justify-between p-4 border-2 border-transparent bg-purple-50 rounded-xl hover:bg-white hover:border-purple-500 hover:shadow-lg transition-all duration-300">
+            <div className="flex items-center space-x-4">
+              <div className="bg-purple-100 p-3 rounded-lg group-hover:bg-purple-600 transition-colors duration-300">
+                <User className="w-6 h-6 text-purple-600 group-hover:text-white transition-colors duration-300" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-800">Personal Teacher</h3>
+                <p className="text-sm text-gray-500">Create independent courses</p>
+              </div>
+            </div>
+            <div className="text-purple-600 opacity-0 group-hover:opacity-100 transform translate-x-[-10px] group-hover:translate-x-0 transition-all duration-300">→</div>
           </Link>
         </div>
-        <p className="text-sm text-center text-gray-600">
-          Already have an account? <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500">Login</Link>
-        </p>
+
+        <div className="mt-8 text-center pt-6 border-t border-gray-100">
+          <p className="text-gray-600">
+            Already have an account?{' '}
+            <Link to="/login" className="font-bold text-indigo-600 hover:text-indigo-500 transition-colors">
+              Sign In
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );
