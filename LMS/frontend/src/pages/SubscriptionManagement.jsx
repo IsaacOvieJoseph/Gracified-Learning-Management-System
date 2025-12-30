@@ -101,16 +101,8 @@ const SubscriptionManagement = () => {
             const payAmount = Math.round(selectedPlan.price * 100);
 
             try {
-              const handler = window.PaystackPop.setup({
-                key: pubKey,
-                email: userEmail,
-                amount: payAmount,
-                ref: resp.data.reference,
-                onClose: () => {
-                  setSubmitting(false);
-                  toast.error('Payment window closed');
-                },
-                callback: async (response) => {
+              const handleCallback = (response) => {
+                (async () => {
                   try {
                     await api.get(`/payments/paystack/verify?reference=${encodeURIComponent(response.reference)}`);
                     toast.success(`Successfully subscribed to ${selectedPlan.name}!`);
@@ -118,10 +110,25 @@ const SubscriptionManagement = () => {
                     setSubmitting(false);
                     navigate('/dashboard');
                   } catch (err) {
+                    console.error('Subscription verification error:', err);
                     setError(err.response?.data?.message || 'Verification failed');
                     setSubmitting(false);
                   }
-                }
+                })();
+              };
+
+              const handleOnClose = () => {
+                setSubmitting(false);
+                toast.error('Payment window closed');
+              };
+
+              const handler = window.PaystackPop.setup({
+                key: pubKey,
+                email: userEmail,
+                amount: payAmount,
+                ref: resp.data.reference,
+                onClose: handleOnClose,
+                callback: handleCallback
               });
 
               if (handler && typeof handler.openIframe === 'function') {
