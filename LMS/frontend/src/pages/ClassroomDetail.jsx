@@ -405,8 +405,8 @@ const ClassroomDetail = () => {
     <Layout>
       <div className="space-y-6">
         <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex justify-between items-start mb-4">
-            <div>
+          <div className="flex flex-col md:flex-row justify-between items-start mb-4">
+            <div className="mb-4 md:mb-0">
               <h2 className="text-3xl font-bold text-gray-800">{classroom.name}</h2>
               <p className="text-gray-600 mt-2">{classroom.description}</p>
             </div>
@@ -557,7 +557,7 @@ const ClassroomDetail = () => {
             </div>
           </div>
 
-          <div className="flex space-x-3">
+          <div className="flex flex-wrap gap-2">
             {!isEnrolled && user?.role === 'student' && classroom.published && (
               <button
                 onClick={handleEnroll}
@@ -708,10 +708,10 @@ const ClassroomDetail = () => {
                 return (
                   <div key={assignment._id} className="bg-white rounded-lg shadow-md overflow-hidden">
                     <div
-                      className="flex justify-between items-start p-6 cursor-pointer hover:bg-gray-50 transition"
+                      className="flex flex-col md:flex-row justify-between items-start p-6 cursor-pointer hover:bg-gray-50 transition"
                       onClick={toggleAssignmentExpanded}
                     >
-                      <div className="flex items-start space-x-3 flex-1">
+                      <div className="flex items-start space-x-3 flex-1 mb-4 md:mb-0">
                         {isAssignmentExpanded ? (
                           <ChevronUp className="w-5 h-5 text-gray-600 mt-1 flex-shrink-0" />
                         ) : (
@@ -731,7 +731,7 @@ const ClassroomDetail = () => {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2 flex-shrink-0">
+                      <div className="flex flex-wrap gap-2 items-center md:justify-end flex-shrink-0 w-full md:w-auto ml-8 md:ml-0">
                         {assignment.dueDate ? (
                           <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-semibold">
                             Due: {new Date(assignment.dueDate).toLocaleDateString()}

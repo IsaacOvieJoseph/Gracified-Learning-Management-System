@@ -232,7 +232,7 @@ const Dashboard = () => {
                     className="flex flex-col md:flex-row md:items-center justify-between py-4 hover:bg-gray-50 transition px-2 rounded-md"
                   >
                     <div className="flex-1">
-                      <div className="flex items-center space-x-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <h4 className="font-semibold text-gray-800">{classroom.name}</h4>
                         {classroom.activities?.map((act, idx) => (
                           <span
@@ -269,7 +269,7 @@ const Dashboard = () => {
                         )}
                       </div>
                     </div>
-                    <div className="mt-2 md:mt-0 flex items-center space-x-3">
+                    <div className="mt-2 md:mt-0 flex flex-wrap items-center gap-2">
                       {classroom.isPaid && classroom.pricing?.amount > 0 ? (
                         <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-bold">
                           {formatAmount(classroom.pricing?.amount || 0, classroom.pricing?.currency || 'NGN')}
@@ -318,7 +318,7 @@ const Dashboard = () => {
                     <div className="flex-1">
                       <h4 className="font-semibold text-gray-800">{classroom.name}</h4>
                       <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{classroom.description}</p>
-                      <div className="flex items-center space-x-4 mt-2 text-xs text-gray-600">
+                      <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-600">
                         <span className={`px-2 py-0.5 rounded text-xs font-semibold ${(Array.isArray(classroom.schoolId) ? classroom.schoolId.length > 0 : classroom.schoolId) ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'}`}>
                           {(Array.isArray(classroom.schoolId) ? (classroom.schoolId[0]?.name || classroom.schoolId[0]) : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}
                           {Array.isArray(classroom.schoolId) && classroom.schoolId.length > 1 && ` +${classroom.schoolId.length - 1}`}

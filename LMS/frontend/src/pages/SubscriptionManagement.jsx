@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../utils/api'; // Use our configured API instance
 import { useAuth } from '../context/AuthContext';
 import { formatAmount } from '../utils/currency';
+import { LogOut } from 'lucide-react';
 
 const SubscriptionManagement = () => {
   const [plans, setPlans] = useState([]);
@@ -183,9 +184,19 @@ const SubscriptionManagement = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-2xl">
-        <h2 className="text-3xl font-bold text-center text-gray-900 mb-6">Choose Your Subscription Plan</h2>
+    <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+      <div className="max-w-7xl w-full mx-auto bg-white p-8 rounded-lg shadow-md relative">
+        <div className="absolute top-4 right-4">
+          <button
+            onClick={() => { logout(); navigate('/login'); }}
+            className="flex items-center space-x-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+            title="Logout"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        </div>
+        <h2 className="text-3xl font-bold text-center text-gray-900 mb-6 mt-2">Choose Your Subscription Plan</h2>
 
         {user?.trialEndDate && user.subscriptionStatus === 'trial' && new Date(user.trialEndDate) > Date.now() &&
           !['student', 'teacher'].includes(user.role) && (
@@ -203,11 +214,12 @@ const SubscriptionManagement = () => {
 
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* Changed from Grid to Flex for better centering relative to content count */}
+        <div className="flex flex-wrap justify-center gap-8 mb-8">
           {plans.map((plan) => (
             <div
               key={plan._id}
-              className={`p-6 border rounded-lg shadow-sm text-center cursor-pointer transition-all ${selectedPlan?._id === plan._id ? 'border-indigo-600 ring-2 ring-indigo-500' : 'border-gray-200 hover:shadow-md'}`}
+              className={`w-full max-w-sm flex flex-col p-6 border rounded-lg shadow-sm text-center cursor-pointer transition-all ${selectedPlan?._id === plan._id ? 'border-indigo-600 ring-2 ring-indigo-500' : 'border-gray-200 hover:shadow-md'}`}
               onClick={() => handleSelectPlan(plan)}
             >
               <h3 className="text-xl font-bold text-gray-800 mb-2">{plan.name}</h3>

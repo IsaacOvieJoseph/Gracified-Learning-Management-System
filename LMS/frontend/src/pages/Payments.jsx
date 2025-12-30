@@ -225,53 +225,55 @@ const Payments = () => {
         <h2 className="text-2xl font-bold text-gray-800">Payment History</h2>
 
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date / Time</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class/Topic</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {payments.length > 0 ? (
-                payments.map((payment) => (
-                  <tr key={payment._id}>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {new Date(payment.paymentDate).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {payment.userId?.name || payment.userId?.email || 'Unknown'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {payment.type.replace('_', ' ')}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-800">
-                      {payment.classroomId?.name || payment.topicId?.name || payment.planId?.name || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {formatAmount(payment.amount, payment.currency || 'NGN')}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
-                        {getStatusIcon(payment.status)}
-                        <span className="ml-1">{payment.status}</span>
-                      </span>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Date / Time</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Payer</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Class/Topic</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {payments.length > 0 ? (
+                  payments.map((payment) => (
+                    <tr key={payment._id}>
+                      <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
+                        {new Date(payment.paymentDate).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
+                        {payment.userId?.name || payment.userId?.email || 'Unknown'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
+                        {payment.type.replace('_', ' ')}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-800 whitespace-nowrap">
+                        {payment.classroomId?.name || payment.topicId?.name || payment.planId?.name || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
+                        {formatAmount(payment.amount, payment.currency || 'NGN')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+                          {getStatusIcon(payment.status)}
+                          <span className="ml-1">{payment.status}</span>
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                      No payment history yet
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
-                    No payment history yet
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </Layout>
