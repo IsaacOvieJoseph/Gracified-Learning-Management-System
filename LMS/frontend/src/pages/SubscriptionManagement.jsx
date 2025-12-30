@@ -70,6 +70,8 @@ const SubscriptionManagement = () => {
     setSubmitting(true);
     setError(null);
     try {
+      await loadPaystackScript();
+
       // For trial/pay-as-you-go, no immediate payment, just update user subscription
       if (selectedPlan.planType === 'trial' || selectedPlan.planType === 'pay_as_you_go') {
         await api.post('/user-subscriptions', {
@@ -94,49 +96,57 @@ const SubscriptionManagement = () => {
           });
 
           if (resp.data && resp.data.reference) {
-            await loadPaystackScript();
             const pubKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
             // standard multiplier for kobo/cents
             const payAmount = Math.round(selectedPlan.price * 100);
 
-            const handler = window.PaystackPop.setup({
-              key: pubKey,
-              email: user.email,
-              amount: payAmount,
-              ref: resp.data.reference,
-              onClose: () => {
-                setSubmitting(false);
-                toast.error('Payment window closed');
-              },
-              callback: async (response) => {
-                try {
-                  await api.get(`/payments/paystack/verify?reference=${encodeURIComponent(response.reference)}`);
-                  toast.success(`Successfully subscribed to ${selectedPlan.name}!`);
-                  await refreshUser();
+            try {
+              const handler = window.PaystackPop.setup({
+                key: pubKey,
+                email: userEmail,
+                amount: payAmount,
+                ref: resp.data.reference,
+                onClose: () => {
                   setSubmitting(false);
-                  navigate('/dashboard');
-                } catch (err) {
-                  setError(err.response?.data?.message || 'Verification failed');
-                  setSubmitting(false);
+                  toast.error('Payment window closed');
+                },
+                callback: async (response) => {
+                  try {
+                    await api.get(`/payments/paystack/verify?reference=${encodeURIComponent(response.reference)}`);
+                    toast.success(`Successfully subscribed to ${selectedPlan.name}!`);
+                    await refreshUser();
+                    setSubmitting(false);
+                    navigate('/dashboard');
+                  } catch (err) {
+                    setError(err.response?.data?.message || 'Verification failed');
+                    setSubmitting(false);
+                  }
                 }
+              });
+
+              if (handler && typeof handler.openIframe === 'function') {
+                handler.openIframe();
+              } else if (handler && typeof handler.open === 'function') {
+                handler.open();
+              } else {
+                handler.open();
               }
-            });
-            if (handler && typeof handler.openIframe === 'function') {
-              handler.openIframe();
-            } else if (handler && typeof handler.open === 'function') {
-              handler.open();
-            } else if (handler) {
-              handler.open();
+              // Wait for user interaction or callback
+              return;
+            } catch (setupErr) {
+              console.error('Paystack setup error:', setupErr);
+              throw new Error(`Failed to initialize Paystack modal: ${setupErr.message}`);
             }
-            return;
           }
         }
 
         // Fallback or if Paystack not configured
         toast.error('Payment configuration missing or failed to initialize');
+        setSubmitting(false);
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Subscription failed');
+      console.error('Subscription process error:', err);
+      setError(err.response?.data?.message || err.message || 'Subscription failed');
       setSubmitting(false);
     }
   };
