@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { validateEmail, validatePassword, passwordRequirements } from '../utils/validation';
 
 const RegisterStudent = () => {
   const [formData, setFormData] = useState({
@@ -18,7 +19,7 @@ const RegisterStudent = () => {
   useEffect(() => {
     // ...existing code...
     // Listen for school selection changes
-    const handler = () => {/* reload any school-dependent data here if needed */};
+    const handler = () => {/* reload any school-dependent data here if needed */ };
     window.addEventListener('schoolSelectionChanged', handler);
     return () => window.removeEventListener('schoolSelectionChanged', handler);
   }, []);
@@ -32,6 +33,18 @@ const RegisterStudent = () => {
     setError(null);
     setMessage(null);
     setLoading(true);
+
+    if (!validateEmail(formData.email)) {
+      setError('Please enter a valid email address.');
+      setLoading(false);
+      return;
+    }
+
+    if (!validatePassword(formData.password)) {
+      setError(passwordRequirements);
+      setLoading(false);
+      return;
+    }
 
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');

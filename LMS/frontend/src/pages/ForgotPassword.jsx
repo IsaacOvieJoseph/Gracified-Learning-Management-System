@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Mail, Key } from 'lucide-react';
 import api from '../utils/api';
+import { validateEmail, validatePassword, passwordRequirements } from '../utils/validation';
+import OTPInput from '../components/OTPInput';
 
 const ForgotPassword = () => {
   const [step, setStep] = useState(1); // 1: Email, 2: OTP, 3: New Password
@@ -20,6 +22,12 @@ const ForgotPassword = () => {
     setError('');
     setMessage('');
     setLoading(true);
+
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address.');
+      setLoading(false);
+      return;
+    }
 
     try {
       const response = await api.post('/auth/forgot-password', { email });
@@ -69,8 +77,8 @@ const ForgotPassword = () => {
       return;
     }
 
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters long');
+    if (!validatePassword(newPassword)) {
+      setError(passwordRequirements);
       setLoading(false);
       return;
     }
@@ -168,15 +176,13 @@ const ForgotPassword = () => {
                 <Key className="w-4 h-4 inline mr-2 text-indigo-500" />
                 Enter OTP
               </label>
-              <input
-                type="text"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-center text-2xl tracking-[0.5em] font-bold outline-none"
-                placeholder="000000"
-                maxLength="6"
-                required
-              />
+              <div className="flex justify-center mb-2">
+                <OTPInput
+                  length={6}
+                  value={otp}
+                  onChange={setOtp}
+                />
+              </div>
               <p className="text-xs text-gray-500 mt-2 text-center">OTP sent to {email || sessionStorage.getItem('resetPasswordEmail')}</p>
             </div>
             {error && (
@@ -296,4 +302,3 @@ const ForgotPassword = () => {
 };
 
 export default ForgotPassword;
-

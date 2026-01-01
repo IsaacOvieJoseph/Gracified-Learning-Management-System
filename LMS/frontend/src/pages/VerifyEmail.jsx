@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import api from '../utils/api'; // Use our configured API instance
 import { useAuth } from '../context/AuthContext';
+import OTPInput from '../components/OTPInput';
 
 const VerifyEmail = () => {
   const [otp, setOtp] = useState('');
@@ -9,21 +10,21 @@ const VerifyEmail = () => {
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState(false);
   // Removed problematic user dependency and effect, since user is not defined
-// Add effect back only if you plan to implement fetchVerificationStatus and properly access user from context.
-// useEffect(() => {
-//   // fetchVerificationStatus();
-//   // Listen for school selection changes
-//   // const handler = () => fetchVerificationStatus();
-//   // window.addEventListener('schoolSelectionChanged', handler);
-//   // return () => window.removeEventListener('schoolSelectionChanged', handler);
-// }, []);
+  // Add effect back only if you plan to implement fetchVerificationStatus and properly access user from context.
+  // useEffect(() => {
+  //   // fetchVerificationStatus();
+  //   // Listen for school selection changes
+  //   // const handler = () => fetchVerificationStatus();
+  //   // window.addEventListener('schoolSelectionChanged', handler);
+  //   // return () => window.removeEventListener('schoolSelectionChanged', handler);
+  // }, []);
 
   const navigate = useNavigate();
   const location = useLocation();
   const { login, setAuthData } = useAuth();
 
   const passedEmail = location.state?.email;
-const [email, setEmail] = useState(passedEmail || sessionStorage.getItem('verifyEmail'));
+  const [email, setEmail] = useState(passedEmail || sessionStorage.getItem('verifyEmail'));
 
   useEffect(() => {
     if (passedEmail) sessionStorage.setItem('verifyEmail', passedEmail);
@@ -90,18 +91,12 @@ const [email, setEmail] = useState(passedEmail || sessionStorage.getItem('verify
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
         <h2 className="text-2xl font-bold text-center text-gray-900">Verify Your Email</h2>
         <p className="text-center text-gray-600">An OTP has been sent to <strong>{email}</strong>. Please enter it below to verify your email address.</p>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="otp" className="block text-sm font-medium text-gray-700">OTP</label>
-            <input
-              type="text"
-              id="otp"
-              name="otp"
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="flex justify-center">
+            <OTPInput
+              length={6}
               value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              required
-              maxLength="6"
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-center text-lg"
+              onChange={setOtp}
             />
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}

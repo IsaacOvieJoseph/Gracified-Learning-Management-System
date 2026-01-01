@@ -5,6 +5,7 @@ import { Plus, Edit, Trash2, Search } from 'lucide-react';
 import Layout from '../components/Layout';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { validateEmail, validatePassword, passwordRequirements } from '../utils/validation';
 
 const Users = () => {
   const { user } = useAuth();
@@ -97,6 +98,17 @@ const Users = () => {
 
   const handleCreate = async (e) => {
     e.preventDefault();
+
+    if (!validateEmail(formData.email)) {
+      toast.error('Please enter a valid email address.');
+      return;
+    }
+
+    if (!validatePassword(formData.password)) {
+      toast.error(passwordRequirements);
+      return;
+    }
+
     try {
       const submitData = { ...formData };
       if (user?.role === 'school_admin') {

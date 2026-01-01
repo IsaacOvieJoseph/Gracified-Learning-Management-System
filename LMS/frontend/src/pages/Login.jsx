@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import logo from '../assets/logo.jpg';
+import { validateEmail } from '../utils/validation';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -19,38 +20,37 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     // e.preventDefault(); // No longer needed as button type is 'button'
-    console.log('Login.jsx: === handleSubmit initiated ==='); // More prominent log here
     setError('');
     setLoading(true);
 
-    console.log('Login.jsx: Attempting to call AuthContext login with:', { email, password });
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address.');
+      setLoading(false);
+      return;
+    }
+
     try {
       const result = await login(email, password);
 
       if (result.success) {
-        console.log('Login.jsx: Login successful, navigating to dashboard.');
         navigate('/dashboard');
       } else if (result.redirectToVerify && result.email) {
-        console.log('Login.jsx: Login requires email verification, navigating to verify-email.');
         navigate('/verify-email', { state: { email: result.email } });
       } else if (result.trialExpired) {
-        console.log('Login.jsx: Trial expired, navigating to subscription management.');
         navigate('/subscription-management', { state: { email: email } });
       } else {
-        console.log('Login.jsx: Login failed with error:', result.message);
         setError(result.message);
       }
     } catch (err) {
-      console.error('Login.jsx: Uncaught error during login process:', err);
+      console.error('Login error:', err);
       setError(err.message || 'An unexpected error occurred.');
     } finally {
       setLoading(false);
-      console.log('Login.jsx: handleSubmit finished. Loading set to false.');
     }
   };
 
   const handleTestClick = () => {
-    console.log('Login.jsx: Test click handler fired!');
+    // console.log('Login.jsx: Test click handler fired!');
   };
 
   return (
