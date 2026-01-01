@@ -252,6 +252,11 @@ const Classrooms = () => {
                   <div>
                     <div className="flex items-center space-x-2">
                       <h3 className="text-xl font-bold text-gray-800">{classroom.name}</h3>
+                      {new Date(classroom.createdAt) > new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) && (
+                        <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full animate-pulse font-semibold">
+                          New
+                        </span>
+                      )}
                       {!classroom.published && (
                         <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">
                           Draft

@@ -81,12 +81,30 @@ const Dashboard = () => {
         });
       }
 
+      // Determine 'My Classrooms' (explicitly related to user)
+      let relatedClassrooms = [];
+      if (user?.role === 'student') {
+        relatedClassrooms = availableClassrooms.filter(c =>
+          c.students?.some(s => (s._id || s) === user?._id) ||
+          user?.enrolledClasses?.includes(c._id)
+        );
+      } else if (user?.role === 'teacher' || user?.role === 'personal_teacher') {
+        relatedClassrooms = availableClassrooms.filter(c =>
+          (c.teacherId?._id || c.teacherId) === user?._id
+        );
+      } else {
+        // For admins, all available classrooms are related
+        relatedClassrooms = availableClassrooms;
+      }
+      setUserClassrooms(relatedClassrooms);
+
       const assignments = assignmentsRes.data.assignments || [];
       const activeMeetings = meetingsRes.data.activeSessions || [];
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
 
       // Map activities to classrooms and identify "Recent" ones
-      const classroomsWithActivity = availableClassrooms.map(c => {
+      // Use relatedClassrooms instead of availableClassrooms to filter properly
+      const classroomsWithActivity = relatedClassrooms.map(c => {
         const activities = [];
         const activeMeeting = activeMeetings.find(m => m.classroomId?.toString() === c._id.toString());
         if (activeMeeting) activities.push({ type: 'meeting', label: 'Active Meeting' });
@@ -104,33 +122,16 @@ const Dashboard = () => {
         return { ...c, activities };
       });
 
-      // "Recent Classrooms" are those with any activity OR recently created
-      // For now, we'll show those with activity first, then by updatedAt
+      // "Recent Classrooms" are those with any activity
+      // We removed the OR new Date(c.createdAt) > threeDaysAgo condition as requested
       const recent = classroomsWithActivity
-        .filter(c => c.activities.length > 0 || new Date(c.createdAt) > threeDaysAgo)
+        .filter(c => c.activities.length > 0)
         .sort((a, b) => {
           if (a.activities.length !== b.activities.length) return b.activities.length - a.activities.length;
           return new Date(b.updatedAt) - new Date(a.updatedAt);
         });
 
       setRecentClassrooms(recent.slice(0, 10)); // Top 10 recent activities
-
-      // Determine 'My Classrooms' (explicitly related to user)
-      let relatedClassrooms = [];
-      if (user?.role === 'student') {
-        relatedClassrooms = availableClassrooms.filter(c =>
-          c.students?.some(s => (s._id || s) === user?._id) ||
-          user?.enrolledClasses?.includes(c._id)
-        );
-      } else if (user?.role === 'teacher' || user?.role === 'personal_teacher') {
-        relatedClassrooms = availableClassrooms.filter(c =>
-          (c.teacherId?._id || c.teacherId) === user?._id
-        );
-      } else {
-        // For admins, all available classrooms are related
-        relatedClassrooms = availableClassrooms;
-      }
-      setUserClassrooms(relatedClassrooms);
 
       // Stats calculation
       let studentCount = 0;
@@ -220,7 +221,7 @@ const Dashboard = () => {
             onClick={() => setIsRecentExpanded(!isRecentExpanded)}
             className="w-full flex items-center justify-between p-6 hover:bg-gray-50 transition border-b"
           >
-            <h3 className="text-lg font-semibold">Recent Activity & Classrooms</h3>
+            <h3 className="text-lg font-semibold">Recent Activity</h3>
             {isRecentExpanded ? <ChevronUp className="w-5 h-5 text-gray-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
           </button>
 

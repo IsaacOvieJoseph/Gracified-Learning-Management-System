@@ -533,17 +533,28 @@ router.get('/history', auth, async (req, res) => {
   try {
     let query = { userId: req.user._id };
 
-    // Root Admin and School Admin can see all payments
-    if (req.user.role === 'root_admin' || req.user.role === 'school_admin') {
+    // Root Admin: sees all
+    if (req.user.role === 'root_admin') {
       query = {};
     }
+    // School Admin: sees own payments + payments for classes in their schools
+    else if (req.user.role === 'school_admin') {
+      const School = require('../models/School');
+      const schools = await School.find({ adminId: req.user._id }).select('_id');
+      const schoolIds = schools.map(s => s._id);
 
-    // Personal Teacher: show payments related to classes they own PLUS their own payments
-    if (req.user.role === 'personal_teacher') {
+      const classrooms = await Classroom.find({ schoolId: { $in: schoolIds } }).select('_id');
+      const classroomIds = classrooms.map(c => c._id);
+
+      query = { $or: [{ userId: req.user._id }, { classroomId: { $in: classroomIds } }] };
+    }
+    // Personal Teacher: sees own payments + payments for their classes
+    else if (req.user.role === 'personal_teacher') {
       const classes = await Classroom.find({ teacherId: req.user._id }).select('_id');
       const classIds = classes.map(c => c._id);
       query = { $or: [{ userId: req.user._id }, { classroomId: { $in: classIds } }] };
     }
+    // Students / Regular Teachers: see only their own payments (default query)
 
     const payments = await Payment.find(query)
       .populate('classroomId', 'name')
