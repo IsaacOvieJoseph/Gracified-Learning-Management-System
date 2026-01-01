@@ -6,6 +6,34 @@ const subscriptionCheck = require('../middleware/subscriptionCheck'); // Import 
 const { isClassroomOwnerSubscriptionValid } = require('../utils/subscriptionHelper');
 const router = express.Router();
 
+// Reorder topics
+router.put('/reorder', auth, subscriptionCheck, async (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+
+    if (!orderedIds || !Array.isArray(orderedIds)) {
+      return res.status(400).json({ message: 'Invalid orderedIds' });
+    }
+
+    // Process updates in parallel
+    const updates = orderedIds.map((id, index) => ({
+      updateOne: {
+        filter: { _id: id },
+        update: { order: index }
+      }
+    }));
+
+    if (updates.length > 0) {
+      await Topic.bulkWrite(updates);
+    }
+
+    res.json({ message: 'Topics reordered successfully' });
+  } catch (error) {
+    console.error('Error reordering topics:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Get topics for a classroom
 router.get('/classroom/:classroomId', auth, subscriptionCheck, async (req, res) => {
   try {
@@ -32,7 +60,7 @@ router.get('/classroom/:classroomId', auth, subscriptionCheck, async (req, res) 
         return res.json({ topics: [] }); // Return empty array if subscription expired
       }
     }
-    
+
     // For teachers, allow access to their own class topics regardless of subscription
     if (req.user.role === 'teacher') {
       const teacherId = classroom.teacherId._id || classroom.teacherId;
@@ -44,7 +72,7 @@ router.get('/classroom/:classroomId', auth, subscriptionCheck, async (req, res) 
         }
       }
     }
-    
+
     // For students, allow access to enrolled class topics regardless of subscription
     if (req.user.role === 'student') {
       const isEnrolled = classroom.students.some(
@@ -145,7 +173,7 @@ router.post('/', auth, authorize('root_admin', 'school_admin', 'teacher', 'perso
       return res.status(404).json({ message: 'Classroom not found' });
     }
 
-    const canCreate = 
+    const canCreate =
       req.user.role === 'root_admin' ||
       (req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString()) ||
       classroom.teacherId.toString() === req.user._id.toString();
@@ -186,7 +214,7 @@ router.put('/:id', auth, subscriptionCheck, async (req, res) => {
     }
 
     const classroom = topic.classroomId;
-    const canEdit = 
+    const canEdit =
       req.user.role === 'root_admin' ||
       (req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString()) ||
       classroom.teacherId.toString() === req.user._id.toString();
@@ -214,7 +242,7 @@ router.delete('/:id', auth, subscriptionCheck, async (req, res) => {
     }
 
     const classroom = topic.classroomId;
-    const canDelete = 
+    const canDelete =
       req.user.role === 'root_admin' ||
       (req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString()) ||
       classroom.teacherId.toString() === req.user._id.toString();
@@ -234,6 +262,8 @@ router.delete('/:id', auth, subscriptionCheck, async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+
 
 module.exports = router;
 

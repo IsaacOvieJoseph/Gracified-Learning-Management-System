@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Video, Edit, Plus, Calendar, Users, Book, DollarSign, X, UserPlus, FileText, CheckCircle, Send, ChevronDown, ChevronUp } from 'lucide-react'; // Added FileText, CheckCircle, Send icons
+import { Video, Edit, Plus, Calendar, Users, Book, DollarSign, X, UserPlus, FileText, CheckCircle, Send, ChevronDown, ChevronUp, GripVertical } from 'lucide-react'; // Added FileText, CheckCircle, Send icons
 import Layout from '../components/Layout';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -68,7 +68,7 @@ const ClassroomDetail = () => {
   const [showChangeTeacherModal, setShowChangeTeacherModal] = useState(false);
   const [availableStudents, setAvailableStudents] = useState([]);
   const [availableTeachers, setAvailableTeachers] = useState([]);
-  const [topicForm, setTopicForm] = useState({ name: '', description: '', order: 0 });
+  const [topicForm, setTopicForm] = useState({ name: '', description: '' });
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
 
@@ -78,6 +78,8 @@ const ClassroomDetail = () => {
   const [showSubmitAssignmentModal, setShowSubmitAssignmentModal] = useState(false); // New state for submit modal
   const [assignmentToSubmit, setAssignmentToSubmit] = useState(null); // New state for assignment to submit
   const [showGradeModal, setShowGradeModal] = useState(false);
+  const [showDeleteTopicModal, setShowDeleteTopicModal] = useState(false);
+  const [topicToDelete, setTopicToDelete] = useState(null);
   const [selectedAssignmentForGrading, setSelectedAssignmentForGrading] = useState(null);
   const [submissionToGrade, setSubmissionToGrade] = useState(null);
   const [expandedSubmissions, setExpandedSubmissions] = useState(new Set()); // Track which submissions are expanded
@@ -199,10 +201,55 @@ const ClassroomDetail = () => {
       });
       toast.success('Topic created successfully');
       setShowTopicModal(false);
-      setTopicForm({ name: '', description: '', order: 0 });
+      setTopicForm({ name: '', description: '' });
       fetchClassroom();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error creating topic');
+    }
+  };
+
+  const handleDragStart = (e, index) => {
+    e.dataTransfer.setData('text/plain', index);
+  };
+
+  const handleDrop = async (e, dropIndex) => {
+    const dragIndex = Number(e.dataTransfer.getData('text/plain'));
+    if (dragIndex === dropIndex) return;
+
+    const newTopics = [...classroom.topics];
+    const [draggedItem] = newTopics.splice(dragIndex, 1);
+    newTopics.splice(dropIndex, 0, draggedItem);
+
+    // Update local state immediately
+    const updatedClassroom = { ...classroom, topics: newTopics };
+    setClassroom(updatedClassroom);
+
+    // Update backend
+    try {
+      const orderedIds = newTopics.map(t => t._id);
+      await api.put('/topics/reorder', { orderedIds });
+      toast.success('Topics reordered');
+    } catch (error) {
+      toast.error('Failed to save topic order');
+      fetchClassroom(); // Revert on error
+    }
+  };
+
+  const handleDeleteTopic = (topicId) => {
+    setTopicToDelete(topicId);
+    setShowDeleteTopicModal(true);
+  };
+
+  const confirmDeleteTopic = async () => {
+    if (!topicToDelete) return;
+    try {
+      await api.delete(`/topics/${topicToDelete}`);
+      toast.success('Topic deleted successfully');
+      setShowDeleteTopicModal(false);
+      setTopicToDelete(null);
+      fetchClassroom();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error deleting topic');
     }
   };
 
@@ -720,14 +767,40 @@ const ClassroomDetail = () => {
             )}
           </div>
 
+
           <div className="space-y-3">
             {classroom.topics && classroom.topics.length > 0 ? (
-              classroom.topics.map((topic) => (
-                <div key={topic._id} className="border rounded-lg p-4 hover:bg-gray-50 transition">
-                  <h4 className="font-semibold text-gray-800">{topic.name}</h4>
-                  <p className="text-sm text-gray-600 mt-1">{topic.description}</p>
-                </div>
-              ))
+              classroom.topics
+                .sort((a, b) => (a.order || 0) - (b.order || 0))
+                .map((topic, index) => (
+                  <div
+                    key={topic._id}
+                    className={`border rounded-lg p-4 hover:bg-gray-50 transition flex items-start gap-3 ${canEdit ? 'cursor-move' : ''}`}
+                    draggable={canEdit}
+                    onDragStart={(e) => canEdit && handleDragStart(e, index)}
+                    onDragOver={(e) => canEdit && e.preventDefault()}
+                    onDrop={(e) => canEdit && handleDrop(e, index)}
+                  >
+                    {canEdit && (
+                      <div className="mt-1 text-gray-400">
+                        <GripVertical className="w-5 h-5" />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-800">{topic.name}</h4>
+                      <p className="text-sm text-gray-600 mt-1">{topic.description}</p>
+                    </div>
+                    {canEdit && (
+                      <button
+                        onClick={() => handleDeleteTopic(topic._id)}
+                        className="text-red-500 hover:text-red-700 p-1"
+                        title="Delete topic"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+                ))
             ) : (
               <p className="text-gray-500 text-center py-4">No topics added yet</p>
             )}
@@ -1175,16 +1248,7 @@ const ClassroomDetail = () => {
                   rows="3"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Order</label>
-                <input
-                  type="number"
-                  value={topicForm.order}
-                  onChange={(e) => setTopicForm({ ...topicForm, order: parseInt(e.target.value) })}
-                  className="w-full px-4 py-2 border rounded-lg"
-                  min="0"
-                />
-              </div>
+
               <div className="flex space-x-3">
                 <button
                   type="button"
@@ -1314,6 +1378,33 @@ const ClassroomDetail = () => {
                   Change Teacher
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Topic Confirmation Modal */}
+      {showDeleteTopicModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-2xl max-w-sm w-full p-6">
+            <h3 className="text-lg font-bold mb-4 text-gray-800">Delete Topic</h3>
+            <p className="text-gray-600 mb-6">Are you sure you want to delete this topic? This action cannot be undone.</p>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowDeleteTopicModal(false);
+                  setTopicToDelete(null);
+                }}
+                className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteTopic}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>
