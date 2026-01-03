@@ -10,18 +10,25 @@ const RegisterStudent = () => {
     email: '',
     password: '',
     confirmPassword: '',
+    schoolId: '',
   });
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
+  const [schools, setSchools] = useState([]);
+
   useEffect(() => {
-    // ...existing code...
-    // Listen for school selection changes
-    const handler = () => {/* reload any school-dependent data here if needed */ };
-    window.addEventListener('schoolSelectionChanged', handler);
-    return () => window.removeEventListener('schoolSelectionChanged', handler);
+    const fetchSchools = async () => {
+      try {
+        const response = await api.get('/schools/public');
+        setSchools(response.data.schools);
+      } catch (error) {
+        console.error('Error fetching schools:', error);
+      }
+    };
+    fetchSchools();
   }, []);
 
   const handleChange = (e) => {
@@ -129,6 +136,24 @@ const RegisterStudent = () => {
               className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
+
+          <div>
+            <label htmlFor="schoolId" className="block text-sm font-medium text-gray-700">School / Tutorial Center</label>
+            <select
+              id="schoolId"
+              name="schoolId"
+              value={formData.schoolId}
+              onChange={handleChange}
+              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="">Select a school (Optional)</option>
+              <option value="none">None</option>
+              {schools.map(school => (
+                <option key={school._id} value={school._id}>{school.name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Select "None" if you don't belong to any specific school.</p>
+          </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
           {message && <p className="text-green-500 text-sm">{message}</p>}
           <button
@@ -142,8 +167,8 @@ const RegisterStudent = () => {
         <p className="text-sm text-center text-gray-600">
           Already have an account? <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500">Login</Link>
         </p>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 };
 

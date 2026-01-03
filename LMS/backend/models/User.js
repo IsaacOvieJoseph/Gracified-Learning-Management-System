@@ -37,6 +37,11 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false, // Default to false, user needs to verify email
   },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
   // New fields for subscriptions
   subscriptionPlan: {
     type: mongoose.Schema.Types.ObjectId,

@@ -21,7 +21,7 @@ router.get('/', auth, authorize('root_admin', 'school_admin', 'personal_teacher'
       const rolesArray = role.split(',').map(r => r.trim());
       query.role = { $in: rolesArray };
     }
-    
+
     // Root Admin sees all users (unless specific query filters are applied)
     if (req.user.role === 'root_admin') {
       // No additional filter needed based on req.user.role, query is already built from req.query
@@ -32,7 +32,7 @@ router.get('/', auth, authorize('root_admin', 'school_admin', 'personal_teacher'
       const School = require('../models/School');
       const adminSchools = await School.find({ adminId: req.user._id }).select('_id');
       const adminSchoolIds = adminSchools.map(s => s._id);
-      
+
       // If a specific schoolId is provided in query, verify it belongs to this admin
       if (req.query.schoolId) {
         const requestedSchoolId = req.query.schoolId;
@@ -51,7 +51,7 @@ router.get('/', auth, authorize('root_admin', 'school_admin', 'personal_teacher'
           query._id = null; // This will return no results
         }
       }
-      
+
       if (!query.role) { // If role not specified in query, default to teachers/students
         query.role = { $in: ['teacher', 'student'] };
       }
@@ -86,9 +86,11 @@ router.post('/', auth, authorize('root_admin', 'school_admin'), async (req, res)
   try {
     const { name, email, password, role, schoolId } = req.body;
 
-    // Root Admin can create any user
+    // Root Admin can create any user EXCEPT another root_admin (for security)
     if (req.user.role === 'root_admin') {
-      // Can create any role
+      if (role === 'root_admin') {
+        return res.status(403).json({ message: 'Creating root_admin users is not allowed.' });
+      }
     }
     // School Admin can only create teachers and students for their school
     else if (req.user.role === 'school_admin') {
@@ -103,20 +105,20 @@ router.post('/', auth, authorize('root_admin', 'school_admin'), async (req, res)
       // If schoolId is provided in body, verify the admin owns these schools
       if (schoolId) {
         const School = require('../models/School');
-        const providedSchoolIds = Array.isArray(schoolId) 
-          ? schoolId.map(id => id.toString()) 
+        const providedSchoolIds = Array.isArray(schoolId)
+          ? schoolId.map(id => id.toString())
           : [schoolId.toString()];
-        
+
         // Check if the admin is the adminId for all provided schools
         // This is more reliable than checking schoolId array, as it checks actual ownership
-        const schools = await School.find({ 
+        const schools = await School.find({
           _id: { $in: providedSchoolIds },
-          adminId: req.user._id 
+          adminId: req.user._id
         });
-        
+
         const foundSchoolIds = schools.map(s => s._id.toString());
         const allValid = providedSchoolIds.every(id => foundSchoolIds.includes(id));
-        
+
         if (allValid && schools.length === providedSchoolIds.length) {
           // All provided schools belong to this admin
           finalSchoolId = schoolId;
@@ -136,11 +138,12 @@ router.post('/', auth, authorize('root_admin', 'school_admin'), async (req, res)
       email,
       password,
       role,
-      schoolId: finalSchoolId
+      schoolId: finalSchoolId,
+      createdBy: req.user._id
     });
 
     await user.save();
-    res.status(201).json({ 
+    res.status(201).json({
       user: {
         id: user._id,
         name: user.name,
@@ -205,7 +208,7 @@ router.get('/my-students', auth, authorize('teacher', 'personal_teacher'), async
     const classrooms = await Classroom.find({ teacherId: req.user._id })
       .populate('students', 'name email enrolledClasses')
       .select('name students');
-    
+
     // Get unique students from all classrooms
     const studentMap = new Map();
     classrooms.forEach(classroom => {
@@ -215,7 +218,7 @@ router.get('/my-students', auth, authorize('teacher', 'personal_teacher'), async
         }
       });
     });
-    
+
     const students = Array.from(studentMap.values());
     res.json({ students });
   } catch (error) {

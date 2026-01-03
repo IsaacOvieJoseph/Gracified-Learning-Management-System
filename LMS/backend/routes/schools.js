@@ -16,7 +16,7 @@ router.post('/', auth, authorize('root_admin', 'school_admin'), async (req, res)
 
     const school = new School({ name, adminId: finalAdminId });
     await school.save();
-    
+
     // Update the admin's schoolId array to include the new school
     if (finalAdminId) {
       const admin = await User.findById(finalAdminId);
@@ -27,7 +27,7 @@ router.post('/', auth, authorize('root_admin', 'school_admin'), async (req, res)
         } else if (!Array.isArray(admin.schoolId)) {
           admin.schoolId = [admin.schoolId];
         }
-        
+
         // Add the new school ID if it's not already in the array
         const schoolIdString = school._id.toString();
         if (!admin.schoolId.some(id => id.toString() === schoolIdString)) {
@@ -36,8 +36,18 @@ router.post('/', auth, authorize('root_admin', 'school_admin'), async (req, res)
         }
       }
     }
-    
+
     return res.status(201).json({ message: 'School created successfully', school });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET PUBLIC SCHOOLS (For Registration)
+router.get('/public', async (req, res) => {
+  try {
+    const schools = await School.find().select('_id name');
+    res.json({ schools });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

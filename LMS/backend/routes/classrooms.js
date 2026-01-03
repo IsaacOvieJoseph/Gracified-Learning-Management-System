@@ -16,13 +16,30 @@ router.get('/', auth, subscriptionCheck, async (req, res) => {
 
     // Students see only published classes (enrolled or available for enrollment)
     if (req.user.role === 'student') {
-      query = {
-        published: true,
-        $or: [
-          { students: req.user._id }, // Already enrolled
-          { students: { $ne: req.user._id } } // Available to enroll
-        ]
-      };
+      // Check strict restriction for Admin-created students
+      if (req.user.createdBy) {
+        const creator = await User.findById(req.user.createdBy);
+        if (creator) {
+          if (creator.role === 'school_admin') {
+            const adminSchools = await School.find({ adminId: creator._id }).select('_id');
+            const adminSchoolIds = adminSchools.map(s => s._id);
+            query = { published: true, schoolId: { $in: adminSchoolIds } };
+          } else if (creator.role === 'personal_teacher') {
+            query = { published: true, teacherId: creator._id };
+          }
+        }
+      }
+
+      // If not strictly restricted (or fallback), check standard logic
+      if (!query.schoolId && !query.teacherId) {
+        query = {
+          published: true,
+          $or: [
+            { students: req.user._id }, // Already enrolled
+            { students: { $ne: req.user._id } } // Available to enroll
+          ]
+        };
+      }
     }
     // Teachers see their own classes
     else if (req.user.role === 'teacher' || req.user.role === 'personal_teacher') {

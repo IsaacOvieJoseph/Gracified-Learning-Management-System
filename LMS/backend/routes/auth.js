@@ -162,8 +162,13 @@ const generateAndSendOTP = async (user) => {
 // Register
 router.post('/register', async (req, res) => {
   try {
-    let { name, email, password, role, schoolName, tutorialName, bankName, bankCode, accountNumber, accountName, payoutFrequency } = req.body;
+    let { name, email, password, role, schoolName, tutorialName, bankName, bankCode, accountNumber, accountName, payoutFrequency, schoolId } = req.body;
     email = email.toLowerCase();
+
+    // Prevent creation of root_admin via public registration
+    if (role === 'root_admin') {
+      return res.status(403).json({ message: 'Registration as root_admin is not allowed.' });
+    }
 
     // Check if user exists
     const existingUser = await User.findOne({ email });
@@ -204,6 +209,11 @@ router.post('/register', async (req, res) => {
       const tutorial = new Tutorial({ name: tutorialName, teacherId: user._id });
       await tutorial.save();
       user.tutorialId = tutorial._id;
+    } else if (role === 'student' && schoolId) {
+      // If student selects a school/tutorial center
+      if (schoolId !== 'none') {
+        user.schoolId.push(schoolId);
+      }
     }
 
     // Assign free trial for School Admins and Personal Teachers

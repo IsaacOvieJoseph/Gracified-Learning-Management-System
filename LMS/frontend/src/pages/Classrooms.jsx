@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
-import { Plus, Calendar, Users, Book, Video, Edit, Eye, EyeOff, Search, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Calendar, Users, Book, Video, Edit, Eye, EyeOff, Search, Trash2, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 import Select from 'react-select';
 import Layout from '../components/Layout';
 import api from '../utils/api';
@@ -27,6 +27,9 @@ const Classrooms = () => {
     schoolIds: [], // Changed from schoolId
     published: false
   });
+
+  const [openMySchool, setOpenMySchool] = useState(true);
+  const [openOthers, setOpenOthers] = useState(true);
 
   // Get selectedSchools from localStorage
   const [selectedSchools, setSelectedSchools] = useState(() => {
@@ -109,14 +112,14 @@ const Classrooms = () => {
   const fetchTeachers = async () => {
     try {
       let url = '/users?role=teacher,personal_teacher';
-      console.log('Classrooms.jsx: Fetching teachers from URL:', url);
+      // console.log('Classrooms.jsx: Fetching teachers from URL:', url);
       const response = await api.get(url);
-      console.log('Classrooms.jsx: Raw response data for teachers:', response.data);
+      // console.log('Classrooms.jsx: Raw response data for teachers:', response.data);
       const teacherList = response.data.users.filter(u =>
         ['teacher', 'personal_teacher'].includes(u.role)
       );
       setTeachers(teacherList);
-      console.log('Classrooms.jsx: Filtered teacher list length:', teacherList.length, 'Teachers:', teacherList);
+      // console.log('Classrooms.jsx: Filtered teacher list length:', teacherList.length, 'Teachers:', teacherList);
     } catch (error) {
       console.error('Error fetching teachers:', error);
     }
@@ -226,6 +229,138 @@ const Classrooms = () => {
 
   const canCreate = ['root_admin', 'school_admin', 'teacher', 'personal_teacher'].includes(user?.role);
 
+  // Helper to check if a classroom belongs to student's school
+  const isMySchoolClass = (classroom) => {
+    if (!user?.schoolId || user.schoolId.length === 0) return false;
+    // Map user school IDs to strings
+    const userSchoolIds = user.schoolId.map(s => (s?._id || s).toString());
+
+    if (Array.isArray(classroom.schoolId)) {
+      return classroom.schoolId.some(sid => userSchoolIds.includes((sid?._id || sid).toString()));
+    }
+    return userSchoolIds.includes((classroom.schoolId?._id || classroom.schoolId)?.toString());
+  };
+
+  const renderClassroomGrid = (classroomsToRender) => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {classroomsToRender.map((classroom) => {
+        const isEnrolled = user?.enrolledClasses?.includes(classroom._id) ||
+          classroom.students?.some(s => s._id === user?._id);
+
+        // Check if class is from a school or tutorial
+        const isTutorial = !classroom.schoolId;
+
+        return (
+          <div key={classroom._id} className={`relative bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition overflow-hidden flex flex-col h-full ${isTutorial ? 'border-l-4 border-purple-500' : ''
+            }`}>
+            {new Date(classroom.createdAt) > new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) && (
+              <span className="absolute -left-6 top-2 bg-red-500 text-white text-[10px] px-6 py-0.5 font-semibold transform -rotate-45 shadow-sm">
+                New
+              </span>
+            )}
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-xl font-bold text-gray-800">{classroom.name}</h3>
+                  <span className={`text-xs px-2 py-1 rounded-full font-semibold ${(Array.isArray(classroom.schoolId) ? classroom.schoolId.length > 0 : classroom.schoolId) ? 'bg-indigo-100 text-indigo-800' : 'bg-purple-100 text-purple-800'}`}>
+                    {(Array.isArray(classroom.schoolId) ? (classroom.schoolId[0]?.name || classroom.schoolId[0]) : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}
+                    {Array.isArray(classroom.schoolId) && classroom.schoolId.length > 1 && ` +${classroom.schoolId.length - 1}`}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600">
+                  by {classroom.teacherId?.name || 'TBA'}
+                </p>
+              </div>
+              <div className="flex flex-col items-end space-y-1">
+                {classroom.isPaid && classroom.pricing?.amount > 0 ? (
+                  <span className="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-semibold">
+                    {formatAmount(classroom.pricing?.amount || 0, classroom.pricing?.currency || 'NGN')}
+                  </span>
+                ) : (
+                  <span className="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-semibold">
+                    Free
+                  </span>
+                )}
+                {['root_admin', 'school_admin', 'personal_teacher'].includes(user?.role) && (
+                  <button
+                    onClick={() => handlePublishToggle(classroom._id, classroom.published)}
+                    className={`text-xs px-2 py-1 rounded ${classroom.published
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-800'
+                      }`}
+                    title={classroom.published ? 'Published - Click to unpublish' : 'Unpublished - Click to publish'}
+                  >
+                    {classroom.published ? <Eye className="w-3 h-3 inline" /> : <EyeOff className="w-3 h-3 inline" />}
+                  </button>
+                )}
+                {(user?.role === 'root_admin' || user?.role === 'school_admin' || (user?.role === 'personal_teacher' && user?._id === classroom.teacherId?._id)) && (
+                  <button
+                    onClick={(e) => handleDeleteClick(classroom._id, e)}
+                    className="text-xs px-2 py-1 rounded bg-red-100 text-red-800 hover:bg-red-200 transition"
+                    title="Delete Classroom"
+                  >
+                    <Trash2 className="w-3 h-3 inline" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-grow space-y-2 mb-4">
+              <div className="flex items-start text-sm text-gray-600">
+                <Calendar className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                <div className="truncate">
+                  {classroom.schedule && classroom.schedule.length > 0 ? (
+                    <>
+                      {classroom.schedule.slice(0, 2).map((session, index) => (
+                        <span key={index} className="mr-1">
+                          {session.dayOfWeek ? session.dayOfWeek.substring(0, 3) : 'N/A'} {session.startTime}-{session.endTime}
+                          {index < Math.min(classroom.schedule.length, 2) - 1 ? ',' : ''}
+                        </span>
+                      ))}
+                      {classroom.schedule.length > 2 && (
+                        <span className="text-gray-400">+{classroom.schedule.length - 2} more</span>
+                      )}
+                    </>
+                  ) : (
+                    <span>No schedule available</span>
+                  )}
+                </div>
+              </div>
+              {user?.role !== 'student' && (
+                <div className="flex items-center text-sm text-gray-600">
+                  <Users className="w-4 h-4 mr-2" />
+                  {classroom.students?.length || 0} students enrolled
+                </div>
+              )}
+              <div className="flex items-center text-sm text-gray-600">
+                <Book className="w-4 h-4 mr-2" />
+                {classroom.topics?.length || 0} topics
+              </div>
+            </div>
+
+            <Link
+              to={`/classrooms/${classroom._id}`}
+              className="w-full block text-center bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition font-semibold mt-auto"
+            >
+              View Details
+            </Link>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // Logic to separate classes if student has a school
+  const showAccordions = user?.role === 'student' && user?.schoolId && user.schoolId.length > 0;
+
+  let mySchoolClasses = [];
+  let otherClasses = [];
+
+  if (showAccordions) {
+    mySchoolClasses = filteredClassrooms.filter(isMySchoolClass);
+    otherClasses = filteredClassrooms.filter(c => !isMySchoolClass(c));
+  }
+
   if (loading) {
     return <Layout><div className="text-center py-8">Loading...</div></Layout>;
   }
@@ -267,111 +402,53 @@ const Classrooms = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredClassrooms.map((classroom) => {
-            const isEnrolled = user?.enrolledClasses?.includes(classroom._id) ||
-              classroom.students?.some(s => s._id === user?._id);
-
-            // Check if class is from a school or tutorial
-            const isTutorial = !classroom.schoolId;
-
-            return (
-              <div key={classroom._id} className={`relative bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition overflow-hidden flex flex-col h-full ${isTutorial ? 'border-l-4 border-purple-500' : ''
-                }`}>
-                {new Date(classroom.createdAt) > new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) && (
-                  <span className="absolute -left-6 top-2 bg-red-500 text-white text-[10px] px-6 py-0.5 font-semibold transform -rotate-45 shadow-sm">
-                    New
-                  </span>
+        <div>
+          {showAccordions ? (
+            <div className="space-y-8">
+              {/* My School Section */}
+              <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
+                <button
+                  onClick={() => setOpenMySchool(!openMySchool)}
+                  className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition"
+                >
+                  <h3 className="text-xl font-bold text-gray-800 flex items-center">
+                    My School / Tutorial Center
+                    <span className="ml-2 text-sm font-normal text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">{mySchoolClasses.length}</span>
+                  </h3>
+                  {openMySchool ? <ChevronDown className="w-5 h-5 text-gray-500" /> : <ChevronRight className="w-5 h-5 text-gray-500" />}
+                </button>
+                {openMySchool && (
+                  <div className="p-4">
+                    {mySchoolClasses.length > 0 ? renderClassroomGrid(mySchoolClasses) : (
+                      <p className="text-gray-500 text-center py-4">No classes found for your school.</p>
+                    )}
+                  </div>
                 )}
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <h3 className="text-xl font-bold text-gray-800">{classroom.name}</h3>
-                      <span className={`text-xs px-2 py-1 rounded-full font-semibold ${(Array.isArray(classroom.schoolId) ? classroom.schoolId.length > 0 : classroom.schoolId) ? 'bg-indigo-100 text-indigo-800' : 'bg-purple-100 text-purple-800'}`}>
-                        {(Array.isArray(classroom.schoolId) ? (classroom.schoolId[0]?.name || classroom.schoolId[0]) : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}
-                        {Array.isArray(classroom.schoolId) && classroom.schoolId.length > 1 && ` +${classroom.schoolId.length - 1}`}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      by {classroom.teacherId?.name || 'TBA'}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end space-y-1">
-                    {classroom.isPaid && classroom.pricing?.amount > 0 ? (
-                      <span className="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-semibold">
-                        {formatAmount(classroom.pricing?.amount || 0, classroom.pricing?.currency || 'NGN')}
-                      </span>
-                    ) : (
-                      <span className="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-semibold">
-                        Free
-                      </span>
-                    )}
-                    {['root_admin', 'school_admin', 'personal_teacher'].includes(user?.role) && (
-                      <button
-                        onClick={() => handlePublishToggle(classroom._id, classroom.published)}
-                        className={`text-xs px-2 py-1 rounded ${classroom.published
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                          }`}
-                        title={classroom.published ? 'Published - Click to unpublish' : 'Unpublished - Click to publish'}
-                      >
-                        {classroom.published ? <Eye className="w-3 h-3 inline" /> : <EyeOff className="w-3 h-3 inline" />}
-                      </button>
-                    )}
-                    {(user?.role === 'root_admin' || user?.role === 'school_admin' || (user?.role === 'personal_teacher' && user?._id === classroom.teacherId?._id)) && (
-                      <button
-                        onClick={(e) => handleDeleteClick(classroom._id, e)}
-                        className="text-xs px-2 py-1 rounded bg-red-100 text-red-800 hover:bg-red-200 transition"
-                        title="Delete Classroom"
-                      >
-                        <Trash2 className="w-3 h-3 inline" />
-                      </button>
-                    )}
-                  </div>
-                </div>
+              </div>
 
-                <div className="flex-grow space-y-2 mb-4">
-                  <div className="flex items-start text-sm text-gray-600">
-                    <Calendar className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
-                    <div className="truncate">
-                      {classroom.schedule && classroom.schedule.length > 0 ? (
-                        <>
-                          {classroom.schedule.slice(0, 2).map((session, index) => (
-                            <span key={index} className="mr-1">
-                              {session.dayOfWeek ? session.dayOfWeek.substring(0, 3) : 'N/A'} {session.startTime}-{session.endTime}
-                              {index < Math.min(classroom.schedule.length, 2) - 1 ? ',' : ''}
-                            </span>
-                          ))}
-                          {classroom.schedule.length > 2 && (
-                            <span className="text-gray-400">+{classroom.schedule.length - 2} more</span>
-                          )}
-                        </>
-                      ) : (
-                        <span>No schedule available</span>
-                      )}
-                    </div>
-                  </div>
-                  {user?.role !== 'student' && (
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Users className="w-4 h-4 mr-2" />
-                      {classroom.students?.length || 0} students enrolled
+              {otherClasses.length > 0 && (
+                <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
+                  <button
+                    onClick={() => setOpenOthers(!openOthers)}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition"
+                  >
+                    <h3 className="text-xl font-bold text-gray-800 flex items-center">
+                      Others
+                      <span className="ml-2 text-sm font-normal text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">{otherClasses.length}</span>
+                    </h3>
+                    {openOthers ? <ChevronDown className="w-5 h-5 text-gray-500" /> : <ChevronRight className="w-5 h-5 text-gray-500" />}
+                  </button>
+                  {openOthers && (
+                    <div className="p-4">
+                      {renderClassroomGrid(otherClasses)}
                     </div>
                   )}
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Book className="w-4 h-4 mr-2" />
-                    {classroom.topics?.length || 0} topics
-                  </div>
                 </div>
-
-                <Link
-                  to={`/classrooms/${classroom._id}`}
-                  className="w-full block text-center bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition font-semibold mt-auto"
-                >
-                  View Details
-                </Link>
-              </div>
-            );
-          })}
+              )}
+            </div>
+          ) : (
+            renderClassroomGrid(filteredClassrooms)
+          )}
         </div>
 
         {filteredClassrooms.length === 0 && (
@@ -660,4 +737,3 @@ const Classrooms = () => {
 };
 
 export default Classrooms;
-
