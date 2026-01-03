@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
-const SubmitAssignmentModal = ({ assignment, onClose, onSubmit }) => {
+const SubmitAssignmentModal = ({ assignment, onClose, onSubmit, isSubmitting }) => {
   const [studentAnswers, setStudentAnswers] = useState(() => {
     if (assignment.assignmentType === 'mcq') {
       return Array(assignment.questions.length).fill('');
@@ -86,9 +87,11 @@ const SubmitAssignmentModal = ({ assignment, onClose, onSubmit }) => {
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center"
             >
               Submit Answers
+              {isSubmitting && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
             </button>
           </div>
         </form>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
-import { Plus, Calendar, Users, Book, Video, Edit, Eye, EyeOff, Search } from 'lucide-react';
+import { Plus, Calendar, Users, Book, Video, Edit, Eye, EyeOff, Search, Trash2, Loader2 } from 'lucide-react';
 import Select from 'react-select';
 import Layout from '../components/Layout';
 import api from '../utils/api';
@@ -74,7 +74,7 @@ const Classrooms = () => {
   }, [searchQuery, classrooms]);
 
   const fetchClassrooms = async () => {
-    setLoading(true);
+    if (classrooms.length === 0) setLoading(true);
     try {
       const response = await api.get('/classrooms');
       let filteredClassrooms = response.data.classrooms;
@@ -140,8 +140,10 @@ const Classrooms = () => {
     }
   }, [user]);
 
+  const [isCreating, setIsCreating] = useState(false);
   const handleCreate = async (e) => {
     e.preventDefault();
+    setIsCreating(true);
     try {
       const submitData = {
         ...formData,
@@ -175,7 +177,7 @@ const Classrooms = () => {
       if (user?.role === 'teacher' || user?.role === 'personal_teacher') {
         delete submitData.teacherId;
       }
-      await api.post('/classrooms', submitData);
+      await api.post('/classrooms', submitData, { skipLoader: true });
       setShowCreateModal(false);
       setFormData({
         name: '',
@@ -191,6 +193,34 @@ const Classrooms = () => {
       fetchClassrooms();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error creating classroom');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [classToDelete, setClassToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteClick = (classroomId, e) => {
+    e.preventDefault(); // Prevent navigation link from triggering
+    setClassToDelete(classroomId);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!classToDelete) return;
+    setIsDeleting(true);
+    try {
+      await api.delete(`/classrooms/${classToDelete}`);
+      toast.success('Classroom deleted successfully');
+      fetchClassrooms();
+      setShowDeleteModal(false);
+      setClassToDelete(null);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error deleting classroom');
+    } finally {
+      setIsDeleting(false); // Ensure loading state is reset
     }
   };
 
@@ -286,6 +316,15 @@ const Classrooms = () => {
                         title={classroom.published ? 'Published - Click to unpublish' : 'Unpublished - Click to publish'}
                       >
                         {classroom.published ? <Eye className="w-3 h-3 inline" /> : <EyeOff className="w-3 h-3 inline" />}
+                      </button>
+                    )}
+                    {(user?.role === 'root_admin' || user?.role === 'school_admin' || (user?.role === 'personal_teacher' && user?._id === classroom.teacherId?._id)) && (
+                      <button
+                        onClick={(e) => handleDeleteClick(classroom._id, e)}
+                        className="text-xs px-2 py-1 rounded bg-red-100 text-red-800 hover:bg-red-200 transition"
+                        title="Delete Classroom"
+                      >
+                        <Trash2 className="w-3 h-3 inline" />
                       </button>
                     )}
                   </div>
@@ -572,13 +611,47 @@ const Classrooms = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || (['root_admin', 'school_admin'].includes(user?.role) && teachers.length === 0)}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:bg-gray-400 disabled:hover:bg-gray-400"
+                  disabled={loading || isCreating || (['root_admin', 'school_admin'].includes(user?.role) && teachers.length === 0)}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:bg-gray-400 disabled:hover:bg-gray-400 flex items-center justify-center"
                 >
                   Create
+                  {isCreating && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
+            <div className="flex justify-center mb-4">
+              <div className="bg-red-100 p-3 rounded-full">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+            </div>
+            <h3 className="text-xl font-bold text-center text-gray-900 mb-2">Delete Classroom?</h3>
+            <p className="text-gray-500 text-center mb-6">
+              Are you sure you want to delete this classroom? This action cannot be undone.
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center justify-center"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+                {isDeleting && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
+              </button>
+            </div>
           </div>
         </div>
       )}

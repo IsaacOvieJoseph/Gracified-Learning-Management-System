@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import Select from 'react-select';
-import { Plus, Edit, Trash2, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Loader2 } from 'lucide-react';
 import Layout from '../components/Layout';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -68,6 +68,7 @@ const Users = () => {
   }, [searchQuery, users]);
 
   const fetchUsers = async () => {
+    if (users.length === 0) setLoading(true);
     try {
       // Teachers see only their enrolled students
       if (user?.role === 'teacher' || user?.role === 'personal_teacher') {
@@ -142,15 +143,19 @@ const Users = () => {
         // Remove schoolIds from submitData to avoid confusion
         delete submitData.schoolIds;
       }
-      await api.post('/users', submitData);
+      await api.post('/users', submitData, { skipLoader: true });
       toast.success('User created successfully');
       setShowCreateModal(false);
       setFormData({ name: '', email: '', password: '', role: 'student', schoolIds: [] });
       fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error creating user');
+    } finally {
+      setIsCreating(false);
     }
   };
+
+  const [isCreating, setIsCreating] = useState(false);
 
   const handleDelete = async (userId) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
@@ -301,7 +306,7 @@ const Users = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 overflow-y-auto max-h-[90vh]">
             <h3 className="text-xl font-bold mb-4">Create User</h3>
-            <form onSubmit={handleCreate} className="space-y-4">
+            <form onSubmit={(e) => { setIsCreating(true); handleCreate(e); }} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                 <input
@@ -400,9 +405,11 @@ const Users = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  disabled={isCreating}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center"
                 >
                   Create
+                  {isCreating && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
                 </button>
               </div>
             </form>

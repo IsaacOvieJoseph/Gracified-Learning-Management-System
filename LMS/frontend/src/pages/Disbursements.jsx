@@ -21,7 +21,7 @@ const Disbursements = () => {
     }, [activeTab]);
 
     const fetchData = async () => {
-        setLoading(true);
+        if (pendingPayouts.length === 0 && history.length === 0) setLoading(true);
         try {
             const endpoint = activeTab === 'pending' ? '/disbursements/pending' : '/disbursements/history';
             const response = await api.get(endpoint);
@@ -43,7 +43,7 @@ const Disbursements = () => {
 
         setProcessingId(paymentId);
         try {
-            await api.post(`/disbursements/approve/${paymentId}`);
+            await api.post(`/disbursements/approve/${paymentId}`, {}, { skipLoader: true });
             toast.success('Disbursement approved and marked as paid');
             fetchData();
         } catch (error) {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Video, Edit, Plus, Calendar, Users, User, Book, DollarSign, X, UserPlus, FileText, CheckCircle, Send, ChevronDown, ChevronUp, GripVertical } from 'lucide-react'; // Added User icon
+import { Video, Edit, Plus, Calendar, Users, User, Book, DollarSign, X, UserPlus, FileText, CheckCircle, Send, ChevronDown, ChevronUp, GripVertical, Trash2, Loader2 } from 'lucide-react'; // Added User icon
 import Layout from '../components/Layout';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -56,14 +56,17 @@ const ClassroomDetail = () => {
       if ((user?.role === 'root_admin' || user?.role === 'school_admin') && classroom.schoolId && classroom.teacherId?.role !== 'personal_teacher' && editForm.teacherId && editForm.teacherId !== classroom.teacherId?._id) {
         updateData.teacherId = editForm.teacherId;
       }
-      await api.put(`/classrooms/${id}`, updateData);
+      await api.put(`/classrooms/${id}`, updateData, { skipLoader: true });
       setShowEditModal(false);
       toast.success('Classroom updated successfully');
       fetchClassroom();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error updating classroom');
+    } finally {
+      setIsEditing(false);
     }
   };
+  const [isEditing, setIsEditing] = useState(false); // Added loading state
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [showChangeTeacherModal, setShowChangeTeacherModal] = useState(false);
   const [availableStudents, setAvailableStudents] = useState([]);
@@ -158,6 +161,7 @@ const ClassroomDetail = () => {
 
   const fetchClassroom = async () => {
     try {
+      if (!classroom) setLoading(true); // Only show global loader on initial fetch
       // Also populate assignments to display them
       const response = await api.get(`/classrooms/${id}`);
       setClassroom(response.data.classroom);
@@ -193,19 +197,23 @@ const ClassroomDetail = () => {
     }
   };
 
+  const [isCreatingTopic, setIsCreatingTopic] = useState(false);
   const handleCreateTopic = async (e) => {
     e.preventDefault();
+    setIsCreatingTopic(true);
     try {
       await api.post('/topics', {
         ...topicForm,
         classroomId: id
-      });
+      }, { skipLoader: true });
       toast.success('Topic created successfully');
       setShowTopicModal(false);
       setTopicForm({ name: '', description: '' });
       fetchClassroom();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error creating topic');
+    } finally {
+      setIsCreatingTopic(false);
     }
   };
 
@@ -270,15 +278,20 @@ const ClassroomDetail = () => {
     fetchClassroom();
   };
 
+  const [isSubmittingAssignment, setIsSubmittingAssignment] = useState(false);
+
   const handleSubmitAssignment = async (assignmentId, answers) => {
+    setIsSubmittingAssignment(true);
     try {
-      await api.post(`/assignments/${assignmentId}/submit`, { answers });
+      await api.post(`/assignments/${assignmentId}/submit`, { answers }, { skipLoader: true });
       setShowSubmitAssignmentModal(false);
       setAssignmentToSubmit(null);
       toast.success('Assignment submitted successfully');
-      fetchClassroom(); // Refresh classroom to update submission status
+      fetchClassroom();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error submitting assignment');
+    } finally {
+      setIsSubmittingAssignment(false);
     }
   };
 
@@ -369,10 +382,13 @@ const ClassroomDetail = () => {
     }
   };
 
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
+
   const handleAddStudent = async (e) => {
     e.preventDefault();
+    setIsAddingStudent(true);
     try {
-      await api.post(`/classrooms/${id}/students`, { studentId: selectedStudentId });
+      await api.post(`/classrooms/${id}/students`, { studentId: selectedStudentId }, { skipLoader: true });
       toast.success('Student added successfully!');
       setShowAddStudentModal(false);
       setSelectedStudentId(''); // Reset selected student ID
@@ -380,6 +396,8 @@ const ClassroomDetail = () => {
       fetchAvailableStudents();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error adding student');
+    } finally {
+      setIsAddingStudent(false);
     }
   };
 
@@ -396,16 +414,39 @@ const ClassroomDetail = () => {
     }
   };
 
+  const [isChangingTeacher, setIsChangingTeacher] = useState(false);
+
   const handleChangeTeacher = async (e) => {
     e.preventDefault();
+    setIsChangingTeacher(true);
     try {
-      await api.put(`/classrooms/${id}/teacher`, { teacherId: selectedTeacherId });
+      await api.put(`/classrooms/${id}/teacher`, { teacherId: selectedTeacherId }, { skipLoader: true });
       toast.success('Teacher updated successfully!');
       setShowChangeTeacherModal(false);
       setSelectedTeacherId('');
       fetchClassroom();
-    } catch (error) {
       toast.error(error.response?.data?.message || 'Error changing teacher');
+    } finally {
+      setIsChangingTeacher(false);
+    }
+  };
+
+  const [showDeleteClassModal, setShowDeleteClassModal] = useState(false);
+  const [isDeletingClass, setIsDeletingClass] = useState(false);
+
+  const handleDeleteClassroomClick = () => {
+    setShowDeleteClassModal(true);
+  };
+
+  const confirmDeleteClassroom = async () => {
+    setIsDeletingClass(true);
+    try {
+      await api.delete(`/classrooms/${id}`);
+      toast.success('Classroom deleted successfully');
+      navigate('/classrooms');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error deleting classroom');
+      setIsDeletingClass(false);
     }
   };
 
@@ -487,21 +528,34 @@ const ClassroomDetail = () => {
             </div>
 
             {canEdit && (
-              <button
-                onClick={handleOpenEdit}
-                className="flex items-center space-x-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition shrink-0 self-start"
-                title="Edit Classroom"
-              >
-                <Edit className="w-4 h-4" />
-                <span className="hidden md:inline">Edit</span>
-              </button>
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleOpenEdit}
+                  className="flex items-center space-x-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition shrink-0 self-start"
+                  title="Edit Classroom"
+                >
+                  <Edit className="w-4 h-4" />
+                  <span className="hidden md:inline">Edit</span>
+                </button>
+                {/* Delete Button (Only for admins or personal teacher owners) */}
+                {(user?.role === 'root_admin' || isSchoolAdminOfClass || (user?.role === 'personal_teacher' && user?._id === classroom.teacherId?._id)) && (
+                  <button
+                    onClick={handleDeleteClassroomClick}
+                    className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition shrink-0 self-start"
+                    title="Delete Classroom"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span className="hidden md:inline">Delete</span>
+                  </button>
+                )}
+              </div>
             )}
             {/* Edit Classroom Modal */}
             {showEditModal && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 overflow-y-auto max-h-[90vh]">
                   <h3 className="text-xl font-bold mb-4">Edit Classroom</h3>
-                  <form onSubmit={handleEditClassroom} className="space-y-4">
+                  <form onSubmit={(e) => { setIsEditing(true); handleEditClassroom(e); }} className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                       <input
@@ -646,9 +700,11 @@ const ClassroomDetail = () => {
                       </button>
                       <button
                         type="submit"
-                        className="flex-1 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600"
+                        disabled={isEditing}
+                        className="flex-1 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 flex items-center justify-center"
                       >
                         Save Changes
+                        {isEditing && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
                       </button>
                     </div>
                   </form>
@@ -1290,9 +1346,11 @@ const ClassroomDetail = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  disabled={isCreatingTopic}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center"
                 >
                   Create
+                  {isCreatingTopic && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
                 </button>
               </div>
             </form>
@@ -1328,6 +1386,7 @@ const ClassroomDetail = () => {
           assignment={assignmentToSubmit}
           onClose={() => setShowSubmitAssignmentModal(false)}
           onSubmit={handleSubmitAssignment}
+          isSubmitting={isSubmittingAssignment}
         />
       )}
 
@@ -1363,10 +1422,11 @@ const ClassroomDetail = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={!selectedStudentId || availableStudents.length === 0} // Disable if no student selected or no available students
+                  disabled={!selectedStudentId || availableStudents.length === 0 || isAddingStudent} // Disable if no student selected or no available students
                   className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
                 >
                   Add Student
+                  {isAddingStudent && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
                 </button>
               </div>
             </form>
@@ -1403,10 +1463,12 @@ const ClassroomDetail = () => {
                 </button>
                 <button
                   type="submit"
+                  disabled={isChangingTeacher}
                   onClick={handleChangeTeacher}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center"
                 >
                   Change Teacher
+                  {isChangingTeacher && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
                 </button>
               </div>
             </div>
@@ -1459,6 +1521,39 @@ const ClassroomDetail = () => {
                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
               >
                 Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Delete Classroom Modal */}
+      {showDeleteClassModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
+            <div className="flex justify-center mb-4">
+              <div className="bg-red-100 p-3 rounded-full">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+            </div>
+            <h3 className="text-xl font-bold text-center text-gray-900 mb-2">Delete Classroom?</h3>
+            <p className="text-gray-500 text-center mb-6">
+              Are you sure you want to delete this classroom? This action cannot be undone.
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowDeleteClassModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+                disabled={isDeletingClass}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteClassroom}
+                disabled={isDeletingClass}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center justify-center"
+              >
+                {isDeletingClass ? 'Deleting...' : 'Delete'}
+                {isDeletingClass && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
               </button>
             </div>
           </div>

@@ -15,7 +15,7 @@ export const AuthProvider = ({ children }) => {
     console.log('AuthContext useEffect: Initializing...');
     const savedUser = localStorage.getItem('user');
     console.log('AuthContext useEffect: Token being retrieved:', savedUser);
-    
+
     if (token && savedUser) {
       console.log('AuthContext useEffect: Token and user found in localStorage. Attempting to verify token.');
       setUser(JSON.parse(savedUser)); // Set user from local storage initially
@@ -29,12 +29,12 @@ export const AuthProvider = ({ children }) => {
   const verifyToken = async () => {
     console.log('AuthContext verifyToken: Starting token verification...');
     const existingToken = localStorage.getItem('token'); // Get existing token
-        
+
     try {
       const response = await api.get('/auth/me');
       const { user: fetchedUser, trialExpired } = response.data; // Extract trialExpired
       console.log('AuthContext verifyToken: Token verification successful. User data:', fetchedUser, 'trialExpired:', trialExpired);
-      
+
       // Ensure schoolId and tutorialId are stored as plain IDs
       const cleanedUser = {
         ...fetchedUser,
@@ -45,7 +45,7 @@ export const AuthProvider = ({ children }) => {
       // Use existing token (not response.data.token which doesn't exist)
       setAuthData(existingToken, cleanedUser, trialExpired);
       // No need for separate setUser/localStorage.setItem calls as setAuthData handles it
-      
+
     } catch (error) {
       const apiErrorMsg = error.response?.data?.message;
       const apiErrorStatus = error.response?.status;
@@ -88,7 +88,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     console.log('AuthContext login: Attempting to log in user:', email);
     try {
-      const response = await api.post('/auth/login', { email, password });
+      const response = await api.post('/auth/login', { email, password }, { skipLoader: true });
       console.log('AuthContext login: Raw response data from /auth/login:', response.data);
       const { token, user, redirectToVerify, trialExpired } = response.data;
       console.log('AuthContext login: Extracted data - token present:', !!token, 'user present:', !!user, 'redirectToVerify:', redirectToVerify, 'trialExpired:', trialExpired);
@@ -97,7 +97,7 @@ export const AuthProvider = ({ children }) => {
         console.log('AuthContext login: Redirecting to verify email.');
         return { success: false, redirectToVerify: true, email: email, message: response.data.message };
       }
-      
+
       // Ensure schoolId and tutorialId are stored as plain IDs
       const cleanedUser = {
         ...user,

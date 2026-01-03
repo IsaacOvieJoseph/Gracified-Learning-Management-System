@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Loader2 } from 'lucide-react';
 
 const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, availableTopics }) => {
   const [createForm, setCreateForm] = useState({
@@ -117,7 +117,7 @@ const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, av
           return;
         }
       }
-      
+
       // Handle maxScore for theory assignments
       if (createForm.assignmentType === 'theory') {
         let newQuestions = [...createForm.questions];
@@ -153,8 +153,8 @@ const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, av
           maxScore: calculatedOverallMaxScore // Set the overall maxScore for the assignment
         }));
       }
-      
-      await api.post('/assignments', createForm);
+
+      await api.post('/assignments', createForm, { skipLoader: true });
       alert('Assignment created successfully!');
       onClose();
       onSubmitSuccess(); // Callback to refresh assignments in parent component
@@ -173,14 +173,18 @@ const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, av
       setOverallMaxScoreInput(100); // Reset overall max score input
     } catch (error) {
       alert(error.response?.data?.message || 'Error creating assignment');
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 overflow-y-auto max-h-[90vh]">
         <h3 className="text-xl font-bold mb-4">Create New Assignment</h3>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={(e) => { setIsSubmitting(true); handleSubmit(e); }} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
             <input
@@ -217,14 +221,14 @@ const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, av
                 {/* For now, just show a placeholder, actual classroom fetching needs to be passed down or handled here */}
                 {/* This will be handled in Assignments.jsx, for ClassroomDetail.jsx, classroomId is already passed */}
                 {availableTopics?.length > 0 && availableTopics[0]?.classroomId && (
-                    <option value={availableTopics[0].classroomId._id}>
-                        {availableTopics[0].classroomId.name}
-                    </option>
+                  <option value={availableTopics[0].classroomId._id}>
+                    {availableTopics[0].classroomId.name}
+                  </option>
                 )}
               </select>
             </div>
           )}
-          
+
           {availableTopics && availableTopics.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Topic (Optional)</label>
@@ -240,7 +244,7 @@ const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, av
               </select>
             </div>
           )}
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Assignment Type</label>
             <div className="flex space-x-4">
@@ -442,9 +446,11 @@ const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, av
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center"
             >
               Create Assignment
+              {isSubmitting && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
             </button>
           </div>
         </form>

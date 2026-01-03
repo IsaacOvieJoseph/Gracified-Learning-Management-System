@@ -169,15 +169,20 @@ const Assignments = () => {
     fetchAssignments();
   };
 
+  const [isSubmittingAssignment, setIsSubmittingAssignment] = useState(false);
+
   const handleSubmitAssignment = async (assignmentId, answers) => {
+    setIsSubmittingAssignment(true);
     try {
-      await api.post(`/assignments/${assignmentId}/submit`, { answers });
+      await api.post(`/assignments/${assignmentId}/submit`, { answers }, { skipLoader: true });
       setShowSubmitAssignmentModal(false);
       setAssignmentToSubmit(null);
       toast.success('Assignment submitted successfully');
       fetchAssignments();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error submitting assignment');
+    } finally {
+      setIsSubmittingAssignment(false);
     }
   };
 
@@ -575,6 +580,7 @@ const Assignments = () => {
           assignment={assignmentToSubmit}
           onClose={() => setShowSubmitAssignmentModal(false)}
           onSubmit={handleSubmitAssignment}
+          isSubmitting={isSubmittingAssignment}
         />
       )}
     </Layout>

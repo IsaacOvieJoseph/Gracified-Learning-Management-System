@@ -38,7 +38,7 @@ const CreateSchoolModal = ({ open, onClose, onCreated }) => {
         // If backend logic changes, uncomment: payload.adminId = user._id;
       }
 
-      await api.post('/schools', payload);
+      await api.post('/schools', payload, { skipLoader: true });
       setSchoolName('');
       // Reset adminId to current user's ID only if it's a root_admin and they had selected someone else
       if (user.role === 'root_admin') {
@@ -404,7 +404,7 @@ export default function SchoolsPage() {
   // Fetch schools
   const loadSchools = async () => {
     try {
-      setLoading(true);
+      if (schools.length === 0) setLoading(true);
       let response;
       if (user?.role === "school_admin") {
         // School admin fetches all schools they administer

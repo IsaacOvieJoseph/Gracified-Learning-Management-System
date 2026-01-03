@@ -26,6 +26,7 @@ api.interceptors.request.use((config) => {
 
   // Skip loading event for non-blocking calls if needed (e.g. notifications, auth check, whiteboard polling)
   const isBackgroundCall =
+    config.skipLoader || // Allow manual opt-out
     config.url.includes('/notifications') ||
     config.url.includes('/auth/me') ||
     config.url.includes('/whiteboard');

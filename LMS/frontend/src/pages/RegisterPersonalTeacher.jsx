@@ -58,7 +58,7 @@ const RegisterPersonalTeacher = () => {
     }
 
     try {
-      const response = await api.post('/auth/register', { ...formData, role: 'personal_teacher' });
+      const response = await api.post('/auth/register', { ...formData, role: 'personal_teacher' }, { skipLoader: true });
       setMessage(response.data.message);
       if (response.data.redirectToVerify) {
         sessionStorage.setItem('verifyEmail', formData.email);

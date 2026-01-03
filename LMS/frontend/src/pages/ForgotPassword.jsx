@@ -30,7 +30,7 @@ const ForgotPassword = () => {
     }
 
     try {
-      const response = await api.post('/auth/forgot-password', { email });
+      const response = await api.post('/auth/forgot-password', { email }, { skipLoader: true });
       setMessage(response.data.message);
       setStep(2); // Move to OTP step
       // Store email in sessionStorage for persistence
@@ -53,7 +53,7 @@ const ForgotPassword = () => {
     const emailToUse = email || sessionStorage.getItem('resetPasswordEmail');
 
     try {
-      const response = await api.post('/auth/verify-reset-otp', { email: emailToUse, otp });
+      const response = await api.post('/auth/verify-reset-otp', { email: emailToUse, otp }, { skipLoader: true });
       setMessage(response.data.message);
       setStep(3); // Move to password reset step
     } catch (err) {
@@ -90,7 +90,7 @@ const ForgotPassword = () => {
         email: emailToUse,
         otp,
         newPassword
-      });
+      }, { skipLoader: true });
       setMessage(response.data.message);
 
       // Clear session storage
@@ -218,7 +218,7 @@ const ForgotPassword = () => {
                   setLoading(true);
                   const emailToUse = email || sessionStorage.getItem('resetPasswordEmail');
                   try {
-                    const response = await api.post('/auth/resend-reset-otp', { email: emailToUse });
+                    const response = await api.post('/auth/resend-reset-otp', { email: emailToUse }, { skipLoader: true });
                     setMessage(response.data.message);
                   } catch (err) {
                     setError(err.response?.data?.message || 'Failed to resend OTP');

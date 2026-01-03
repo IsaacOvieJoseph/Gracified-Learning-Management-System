@@ -42,7 +42,7 @@ const VerifyEmail = () => {
     setLoading(true);
 
     try {
-      const response = await api.post('/auth/verify-otp', { email, otp });
+      const response = await api.post('/auth/verify-otp', { email, otp }, { skipLoader: true });
       console.log('VerifyEmail: API Response on OTP verification:', response.data);
       // Debug: Log all relevant response fields
       console.log('VerifyEmail: token:', response.data.token);
@@ -76,7 +76,7 @@ const VerifyEmail = () => {
     setMessage(null);
     setLoading(true);
     try {
-      const response = await api.post('/auth/resend-otp', { email });
+      const response = await api.post('/auth/resend-otp', { email }, { skipLoader: true });
       setMessage(response.data.message);
     } catch (err) {
       console.error('Resend OTP error:', err.response?.data?.message || err.message);
