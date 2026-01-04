@@ -24,6 +24,39 @@ const Layout = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const notificationsRef = useRef(null);
 
+  const [isLoading, setIsLoading] = useState(false);
+  const loadingCountRef = useRef(0);
+  const timeoutRef = useRef(null);
+
+  useEffect(() => {
+    const startLoading = () => {
+      loadingCountRef.current++;
+      setIsLoading(true);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+
+    const stopLoading = () => {
+      loadingCountRef.current = Math.max(0, loadingCountRef.current - 1);
+      if (loadingCountRef.current === 0) {
+        timeoutRef.current = setTimeout(() => {
+          setIsLoading(false);
+        }, 150);
+      }
+    };
+
+    window.addEventListener('loading-start', startLoading);
+    window.addEventListener('loading-end', stopLoading);
+
+    return () => {
+      window.removeEventListener('loading-start', startLoading);
+      window.removeEventListener('loading-end', stopLoading);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     if (user && refreshUser) {
       refreshUser();
@@ -120,7 +153,11 @@ const Layout = ({ children }) => {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <img src={logo} alt="Gracified LMS" className="w-10 h-10 object-contain rounded-full" />
+              <img
+                src={logo}
+                alt="Gracified LMS"
+                className={`w-10 h-10 object-contain rounded-full transition-transform ${isLoading ? 'animate-spin' : ''}`}
+              />
               <div>
                 <h1 className="text-xl font-bold text-gray-800">Gracified LMS</h1>
                 <p className="text-xs text-gray-500">

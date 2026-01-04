@@ -115,9 +115,9 @@ const Dashboard = () => {
         );
         if (newAssignments.length > 0) activities.push({ type: 'assignment', label: `${newAssignments.length} New Assignment${newAssignments.length > 1 ? 's' : ''}` });
 
-        if (new Date(c.updatedAt) > threeDaysAgo) {
-          activities.push({ type: 'update', label: 'Recently Updated' });
-        }
+        // if (new Date(c.updatedAt) > threeDaysAgo) {
+        //   activities.push({ type: 'update', label: 'Recently Updated' });
+        // }
 
         return { ...c, activities };
       });

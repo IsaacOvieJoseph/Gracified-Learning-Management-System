@@ -8,6 +8,20 @@ const subscriptionCheck = require('../middleware/subscriptionCheck'); // Import 
 const { filterAssignmentsBySubscription, isClassroomOwnerSubscriptionValid } = require('../utils/subscriptionHelper');
 const router = express.Router();
 
+// Helper to check school access
+const hasSchoolAccess = (user, classroom) => {
+  if (user.role === 'root_admin') return true;
+  if (!user.schoolId || !classroom.schoolId) return false;
+
+  const userSchools = Array.isArray(user.schoolId) ? user.schoolId : [user.schoolId];
+  const classroomSchools = Array.isArray(classroom.schoolId) ? classroom.schoolId : [classroom.schoolId];
+
+  const userSchoolIds = userSchools.map(id => (id._id || id).toString());
+  const classroomSchoolIds = classroomSchools.map(id => (id._id || id).toString());
+
+  return userSchoolIds.some(id => classroomSchoolIds.includes(id));
+};
+
 // Get all assignments relevant to the user
 router.get('/', auth, async (req, res) => {
   try {
@@ -207,8 +221,8 @@ router.post('/', auth, authorize('root_admin', 'school_admin', 'teacher', 'perso
 
     const canCreate =
       req.user.role === 'root_admin' ||
-      (req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString()) ||
-      classroom.teacherId.toString() === req.user._id.toString();
+      (req.user.role === 'school_admin' && hasSchoolAccess(req.user, classroom)) ||
+      (classroom.teacherId?._id || classroom.teacherId).toString() === req.user._id.toString();
 
     if (!canCreate) {
       return res.status(403).json({ message: 'Access denied' });
@@ -349,8 +363,8 @@ router.put('/:id', auth, authorize('root_admin', 'school_admin', 'teacher', 'per
     const classroom = await Classroom.findById(assignment.classroomId).populate('students', 'name email').populate('teacherId', 'name email');
     const canEdit =
       req.user.role === 'root_admin' ||
-      (req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString()) ||
-      classroom.teacherId._id.toString() === req.user._id.toString();
+      (req.user.role === 'school_admin' && hasSchoolAccess(req.user, classroom)) ||
+      (classroom.teacherId?._id || classroom.teacherId).toString() === req.user._id.toString();
 
     if (!canEdit) {
       return res.status(403).json({ message: 'Access denied' });
@@ -528,8 +542,8 @@ router.put('/:id/grade', auth, authorize('root_admin', 'school_admin', 'teacher'
     const classroom = assignment.classroomId;
     const canGrade =
       req.user.role === 'root_admin' ||
-      (req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString()) ||
-      classroom.teacherId.toString() === req.user._id.toString();
+      (req.user.role === 'school_admin' && hasSchoolAccess(req.user, classroom)) ||
+      (classroom.teacherId?._id || classroom.teacherId).toString() === req.user._id.toString();
 
     if (!canGrade) {
       return res.status(403).json({ message: 'Access denied' });
@@ -611,8 +625,8 @@ router.put('/:id/grade-theory', auth, authorize('root_admin', 'school_admin', 't
     const classroom = assignment.classroomId;
     const canGrade =
       req.user.role === 'root_admin' ||
-      (req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString()) ||
-      classroom.teacherId.toString() === req.user._id.toString();
+      (req.user.role === 'school_admin' && hasSchoolAccess(req.user, classroom)) ||
+      (classroom.teacherId?._id || classroom.teacherId).toString() === req.user._id.toString();
 
     if (!canGrade) {
       return res.status(403).json({ message: 'Access denied' });
@@ -713,8 +727,8 @@ router.get('/:id/results', auth, subscriptionCheck, async (req, res) => {
 
     // Authorization check
     const isStudent = req.user.role === 'student';
-    const isTeacherOfClassroom = classroom.teacherId.toString() === req.user._id.toString();
-    const isSchoolAdminOfClassroom = req.user.role === 'school_admin' && classroom.schoolId?.toString() === req.user.schoolId?.toString();
+    const isTeacherOfClassroom = (classroom.teacherId?._id || classroom.teacherId).toString() === req.user._id.toString();
+    const isSchoolAdminOfClassroom = req.user.role === 'school_admin' && hasSchoolAccess(req.user, classroom);
     const isRootAdmin = req.user.role === 'root_admin';
 
     if (!isStudent && !isTeacherOfClassroom && !isSchoolAdminOfClassroom && !isRootAdmin) {
@@ -749,6 +763,40 @@ router.get('/:id/results', auth, subscriptionCheck, async (req, res) => {
     }
 
     res.json({ assignment: { ...assignment.toObject(), submissions: submissionsToReturn } });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Delete assignment
+router.delete('/:id', auth, authorize('root_admin', 'school_admin', 'teacher', 'personal_teacher'), subscriptionCheck, async (req, res) => {
+  try {
+    const assignment = await Assignment.findById(req.params.id);
+    if (!assignment) {
+      return res.status(404).json({ message: 'Assignment not found' });
+    }
+
+    const classroom = await Classroom.findById(assignment.classroomId);
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found for this assignment' });
+    }
+
+    const canDelete =
+      req.user.role === 'root_admin' ||
+      (req.user.role === 'school_admin' && hasSchoolAccess(req.user, classroom)) ||
+      (classroom.teacherId?._id || classroom.teacherId).toString() === req.user._id.toString();
+
+    if (!canDelete) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Remove assignment from classroom
+    await Classroom.findByIdAndUpdate(assignment.classroomId, {
+      $pull: { assignments: assignment._id }
+    });
+
+    await Assignment.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Assignment deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

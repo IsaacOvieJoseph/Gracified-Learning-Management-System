@@ -22,7 +22,7 @@ import SubscriptionManagement from './pages/SubscriptionManagement'; // Import n
 import Disbursements from './pages/Disbursements'; // Import new Disbursements component
 import ForgotPassword from './pages/ForgotPassword';
 import { Toaster } from 'react-hot-toast';
-import Loader from './components/Loader';
+
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -230,42 +230,7 @@ const AppRoutes = () => {
 };
 
 function App() {
-  const [loadingCount, setLoadingCount] = React.useState(0);
-  const [visible, setVisible] = React.useState(false);
-  const timeoutRef = React.useRef(null);
 
-  React.useEffect(() => {
-    const startLoading = () => {
-      setLoadingCount(prev => prev + 1);
-      setVisible(true);
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-    };
-
-    const stopLoading = () => {
-      setLoadingCount(prev => {
-        const newCount = Math.max(0, prev - 1);
-        if (newCount === 0) {
-          // Add a tiny delay before hiding to bridge fast sequential requests
-          timeoutRef.current = setTimeout(() => {
-            setVisible(false);
-          }, 150);
-        }
-        return newCount;
-      });
-    };
-
-    window.addEventListener('loading-start', startLoading);
-    window.addEventListener('loading-end', stopLoading);
-
-    return () => {
-      window.removeEventListener('loading-start', startLoading);
-      window.removeEventListener('loading-end', stopLoading);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
 
   return (
     <ErrorBoundary>
@@ -275,7 +240,7 @@ function App() {
         </Router>
       </AuthProvider>
       <Toaster position="top-right" reverseOrder={false} />
-      {visible && <Loader />}
+
     </ErrorBoundary>
   );
 }

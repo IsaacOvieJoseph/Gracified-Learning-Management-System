@@ -253,7 +253,7 @@ const Classrooms = () => {
         return (
           <div key={classroom._id} className={`relative bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition overflow-hidden flex flex-col h-full ${isTutorial ? 'border-l-4 border-purple-500' : ''
             }`}>
-            {new Date(classroom.createdAt) > new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) && (
+            {new Date(classroom.createdAt) > new Date(Date.now() - 5 * 24 * 60 * 60 * 1000) && (
               <span className="absolute -left-6 top-2 bg-red-500 text-white text-[10px] px-6 py-0.5 font-semibold transform -rotate-45 shadow-sm">
                 New
               </span>

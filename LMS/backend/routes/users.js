@@ -165,7 +165,11 @@ router.put('/:id', auth, authorize('root_admin', 'school_admin'), async (req, re
     }
 
     // Check permissions
-    if (req.user.role === 'school_admin') {
+    if (req.user.role === 'root_admin') {
+      if (req.body.role === 'root_admin' && targetUser.role !== 'root_admin') {
+        return res.status(403).json({ message: 'Cannot elevate a user to root_admin.' });
+      }
+    } else if (req.user.role === 'school_admin') {
       // School admin can only update users from their school
       if (targetUser.schoolId?.toString() !== req.user.schoolId?.toString()) {
         return res.status(403).json({ message: 'Access denied' });

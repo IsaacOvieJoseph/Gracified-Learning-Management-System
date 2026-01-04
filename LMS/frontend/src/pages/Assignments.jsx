@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import CreateAssignmentModal from '../components/CreateAssignmentModal';
 import GradeAssignmentModal from '../components/GradeAssignmentModal'; // Import the new modal component
 import SubmitAssignmentModal from '../components/SubmitAssignmentModal';
+import { Edit, Trash2, X, Loader2 } from 'lucide-react';
 
 const Assignments = () => {
   const { user, loading: userLoading } = useAuth();
@@ -24,6 +25,10 @@ const Assignments = () => {
   const [topics, setTopics] = useState([]); // To populate topic dropdown for assignment creation
   const [expandedSubmissions, setExpandedSubmissions] = useState(new Set()); // Track which submissions are expanded
   const [expandedAssignments, setExpandedAssignments] = useState(new Set()); // Track which assignments are expanded
+  const [assignmentToEdit, setAssignmentToEdit] = useState(null);
+  const [assignmentToDelete, setAssignmentToDelete] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedSchools, setSelectedSchools] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('selectedSchools')) || [];
@@ -196,6 +201,50 @@ const Assignments = () => {
   const canCreateAssignment = ['root_admin', 'school_admin', 'teacher', 'personal_teacher'].includes(user?.role);
   const canGradeAssignment = ['root_admin', 'school_admin', 'teacher', 'personal_teacher'].includes(user?.role);
 
+  const canManageAssignment = (assignment) => {
+    if (user?.role === 'root_admin') return true;
+    if (user?.role === 'school_admin') {
+      const classroomSchoolIds = Array.isArray(assignment.classroomId?.schoolId)
+        ? assignment.classroomId.schoolId.map(id => (id._id || id)?.toString())
+        : [assignment.classroomId?.schoolId?._id?.toString() || assignment.classroomId?.schoolId?.toString()];
+      const userSchoolIds = Array.isArray(user.schoolId)
+        ? user.schoolId.map(id => (id._id || id)?.toString())
+        : [user.schoolId?.toString()];
+      return userSchoolIds.some(id => id && classroomSchoolIds.includes(id));
+    }
+    if (['teacher', 'personal_teacher'].includes(user?.role)) {
+      const teacherId = assignment.classroomId?.teacherId?._id || assignment.classroomId?.teacherId;
+      return teacherId?.toString() === user?._id?.toString();
+    }
+    return false;
+  };
+
+  const handleOpenEditAssignment = (assignment) => {
+    setAssignmentToEdit(assignment);
+    setShowCreateAssignmentModal(true);
+  };
+
+  const handleDeleteAssignment = (assignmentId) => {
+    setAssignmentToDelete(assignmentId);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteAssignment = async () => {
+    if (!assignmentToDelete) return;
+    setIsDeleting(true);
+    try {
+      await api.delete(`/assignments/${assignmentToDelete}`);
+      toast.success('Assignment deleted successfully');
+      setShowDeleteModal(false);
+      setAssignmentToDelete(null);
+      fetchAssignments();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error deleting assignment');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (loading || userLoading) {
     return <Layout><div className="text-center py-8">Loading...</div></Layout>;
   }
@@ -301,6 +350,30 @@ const Assignments = () => {
                         <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-semibold">
                           Submitted
                         </span>
+                      )}
+                      {canManageAssignment(assignment) && (
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditAssignment(assignment);
+                            }}
+                            className="text-yellow-500 hover:text-yellow-700 p-1"
+                            title="Edit assignment"
+                          >
+                            <Edit className="w-5 h-5 transition-colors" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteAssignment(assignment._id);
+                            }}
+                            className="text-red-500 hover:text-red-700 p-1"
+                            title="Delete assignment"
+                          >
+                            <X className="w-5 h-5 transition-colors" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -556,11 +629,43 @@ const Assignments = () => {
       {showCreateAssignmentModal && (
         <CreateAssignmentModal
           show={showCreateAssignmentModal}
-          onClose={() => setShowCreateAssignmentModal(false)}
+          onClose={() => {
+            setShowCreateAssignmentModal(false);
+            setAssignmentToEdit(null);
+          }}
           onSubmitSuccess={handleCreateAssignmentSuccess}
           availableTopics={topics}
           availableClassrooms={classrooms}
+          editAssignment={assignmentToEdit}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white rounded-lg shadow-2xl max-w-sm w-full p-6 text-center">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-8 h-8 text-red-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">Delete Assignment?</h3>
+            <p className="text-gray-600 mb-6">Are you sure you want to delete this assignment? All student submissions and grades will be permanently removed.</p>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteAssignment}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:bg-red-400 flex items-center justify-center"
+              >
+                {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Grade Assignment Modal */}

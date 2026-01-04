@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { Plus, X, Loader2 } from 'lucide-react';
 
-const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, availableTopics }) => {
+const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, availableTopics, editAssignment }) => {
   const [createForm, setCreateForm] = useState({
     title: '',
     description: '',
@@ -19,11 +19,23 @@ const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, av
   const [overallMaxScoreInput, setOverallMaxScoreInput] = useState(100); // For even distribution input
 
   useEffect(() => {
-    // If a classroomId is passed, set it in the form
-    if (classroomId) {
+    if (editAssignment) {
+      setCreateForm({
+        title: editAssignment.title || '',
+        description: editAssignment.description || '',
+        classroomId: editAssignment.classroomId?._id || editAssignment.classroomId || classroomId || '',
+        topicId: editAssignment.topicId?._id || editAssignment.topicId || '',
+        dueDate: editAssignment.dueDate ? new Date(editAssignment.dueDate).toISOString().split('T')[0] : '',
+        maxScore: editAssignment.maxScore || 100,
+        assignmentType: editAssignment.assignmentType || 'theory',
+        publishResultsAt: editAssignment.publishResultsAt ? new Date(editAssignment.publishResultsAt).toISOString().slice(0, 16) : '',
+        questions: editAssignment.questions || [{ questionText: '', options: ['', ''], correctOption: '', markingPreference: 'manual', maxScore: 0 }]
+      });
+      setOverallMaxScoreInput(editAssignment.maxScore || 100);
+    } else if (classroomId) {
       setCreateForm(prevForm => ({ ...prevForm, classroomId }));
     }
-  }, [classroomId]);
+  }, [classroomId, editAssignment]);
 
   if (!show) {
     return null;
@@ -154,8 +166,13 @@ const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, av
         }));
       }
 
-      await api.post('/assignments', createForm, { skipLoader: true });
-      alert('Assignment created successfully!');
+      if (editAssignment) {
+        await api.put(`/assignments/${editAssignment._id}`, createForm, { skipLoader: true });
+        alert('Assignment updated successfully!');
+      } else {
+        await api.post('/assignments', createForm, { skipLoader: true });
+        alert('Assignment created successfully!');
+      }
       onClose();
       onSubmitSuccess(); // Callback to refresh assignments in parent component
       setCreateForm({ // Reset form after successful submission
@@ -183,7 +200,7 @@ const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, av
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 overflow-y-auto max-h-[90vh]">
-        <h3 className="text-xl font-bold mb-4">Create New Assignment</h3>
+        <h3 className="text-xl font-bold mb-4">{editAssignment ? 'Edit Assignment' : 'Create New Assignment'}</h3>
         <form onSubmit={(e) => { setIsSubmitting(true); handleSubmit(e); }} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
@@ -449,7 +466,7 @@ const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, av
               disabled={isSubmitting}
               className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center"
             >
-              Create Assignment
+              {editAssignment ? 'Update Assignment' : 'Create Assignment'}
               {isSubmitting && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
             </button>
           </div>
