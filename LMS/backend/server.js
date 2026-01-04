@@ -10,6 +10,7 @@ const whiteboardSessions = require('./whiteboardSessions');
 const User = require('./models/User');
 const Classroom = require('./models/Classroom');
 const Whiteboard = require('./models/Whiteboard');
+const { startScheduler } = require('./utils/scheduler');
 
 dotenv.config();
 
@@ -32,6 +33,15 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Basic health check and root routes
+app.get('/', (req, res) => {
+  res.json({ status: 'OK', message: 'LMS API is running at /api' });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'OK', message: 'LMS API is running' });
+});
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
@@ -47,11 +57,6 @@ app.use('/api/schools', require('./routes/schools'));
 app.use('/api/subscription-plans', require('./routes/subscriptionPlans')); // New subscription plans route
 app.use('/api/user-subscriptions', require('./routes/userSubscriptions')); // New user subscriptions route
 app.use('/api/disbursements', require('./routes/disbursements'));
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'LMS API is running' });
-});
 
 // Connect to MongoDB
 const connectDB = async () => {
@@ -71,7 +76,10 @@ const connectDB = async () => {
   }
 };
 
-connectDB();
+connectDB().then(() => {
+  // Start the background scheduler for class reminders
+  startScheduler();
+});
 
 const PORT = process.env.PORT || 5000;
 
