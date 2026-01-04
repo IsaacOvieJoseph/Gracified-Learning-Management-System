@@ -504,23 +504,45 @@ router.post('/:id/submit', auth, async (req, res) => {
 
     await assignment.save();
 
-    // Create in-app notification for the teacher about new submission
+    // Create notifications
     try {
-      // Populate classroom and teacherId to get teacher's ID
-      await assignment.populate('classroomId', 'teacherId'); // Ensure teacherId is populated
+      // 1. Notification for the teacher about new submission
+      await assignment.populate('classroomId', 'name teacherId');
       const teacherId = assignment.classroomId.teacherId;
+      const classroomName = assignment.classroomId.name;
 
       if (teacherId) {
         await Notification.create({
           userId: teacherId,
-          message: `Student ${req.user.name} has submitted assignment "${assignment.title}" in "${assignment.classroomId.name}".`,
+          message: `Student ${req.user.name} has submitted assignment "${assignment.title}" in "${classroomName}".`,
           type: 'new_submission',
           entityId: assignment._id,
           entityRef: 'Assignment',
         });
       }
-    } catch (inAppNotifError) {
-      console.error('Error creating in-app notification for new submission:', inAppNotifError.message);
+
+      // 2. Notification for the student if auto-graded (MCQ)
+      if (status === 'graded') {
+        const studentMessage = `Your MCQ assignment "${assignment.title}" in "${classroomName}" has been auto-graded. Score: ${score}/${assignment.maxScore}.`;
+
+        // In-app
+        await Notification.create({
+          userId: req.user._id,
+          message: studentMessage,
+          type: 'assignment_graded',
+          entityId: assignment._id,
+          entityRef: 'Assignment',
+        });
+
+        // Email
+        sendEmail({
+          to: req.user.email,
+          subject: `Assignment Graded: ${assignment.title}`,
+          html: `<h2>Result Ready</h2><p>${studentMessage}</p>`
+        }).catch(e => console.error('Auto-grading email error:', e.message));
+      }
+    } catch (notificationError) {
+      console.error('Error creating notifications after submission:', notificationError.message);
     }
 
     res.json({ message: 'Assignment submitted successfully', assignment });
@@ -699,6 +721,15 @@ router.put('/:id/grade-theory', auth, authorize('root_admin', 'school_admin', 't
           html: `<h2>Grade Released</h2><p>${message}</p>`
         }).catch(e => console.error('Email error', e.message));
       }
+
+      // Teacher In-app
+      await Notification.create({
+        userId: req.user._id,
+        message: `You graded theory assignment "${assignment.title}" for ${student.name || 'a student'}. Total Score: ${submissionAfter?.score}/${assignment.maxScore}.`,
+        type: 'assignment_graded',
+        entityId: assignment._id,
+        entityRef: 'Assignment',
+      });
     } catch (e) {
       console.error('Theory grading notification error', e.message);
     }
