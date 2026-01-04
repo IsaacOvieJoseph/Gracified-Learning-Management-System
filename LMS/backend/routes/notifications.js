@@ -33,6 +33,9 @@ router.post('/class-reminder/:classroomId', internalAuth, async (req, res) => {
       subject: `Class Reminder: ${classroom.name}`,
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg" alt="Gracified logo" style="max-height: 80px;">
+          </div>
           <h2 style="color: #4f46e5;">Class Session Reminder</h2>
           <p>Hello <strong>${recipient.name}</strong>,</p>
           <p>This is a reminder for your upcoming class session:</p>
@@ -94,6 +97,9 @@ router.post('/assignment-reminder/:assignmentId', internalAuth, async (req, res)
       subject: `Assignment Reminder: ${assignment.title}`,
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg" alt="Gracified logo" style="max-height: 80px;">
+          </div>
           <h2 style="color: #f59e0b;">Assignment Reminder</h2>
           <p>Hello <strong>${recipient.name}</strong>,</p>
           <p>This is a reminder about an upcoming assignment deadline:</p>
@@ -157,6 +163,9 @@ router.post('/assignment-result/:assignmentId/:studentId', internalAuth, async (
       subject: `Assignment Result: ${assignment.title}`,
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg" alt="Gracified logo" style="max-height: 80px;">
+          </div>
           <h2 style="color: #4f46e5;">Assignment Result Ready</h2>
           <p>Hello <strong>${student.name}</strong>,</p>
           <p>Your assignment for <strong>"${assignment.title}"</strong> has been graded.</p>
@@ -179,6 +188,9 @@ router.post('/assignment-result/:assignmentId/:studentId', internalAuth, async (
       subject: `Assignment Graded: ${assignment.title}`,
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg" alt="Gracified logo" style="max-height: 80px;">
+          </div>
           <h2 style="color: #4f46e5;">Assignment Graded</h2>
           <p>Hello <strong>${teacher.name}</strong>,</p>
           <p>You have successfully graded an assignment for <strong>${student.name}</strong>.</p>
@@ -221,6 +233,9 @@ router.post('/payment-notification', internalAuth, async (req, res) => {
       subject: `Payment ${status}: ${type}`,
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg" alt="Gracified logo" style="max-height: 80px;">
+          </div>
           <h2 style="color: ${status === 'success' ? '#10b981' : '#ef4444'}; text-transform: capitalize;">Payment ${status}</h2>
           <p>Hello <strong>${user.name}</strong>,</p>
           <p>Your payment for <strong>${type}</strong> has been processed.</p>
@@ -261,6 +276,9 @@ router.post('/payout-notification', internalAuth, async (req, res) => {
       subject: `Payout Approved: ${classroomName}`,
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg" alt="Gracified logo" style="max-height: 80px;">
+          </div>
           <h2 style="color: #10b981;">Payout Successful</h2>
           <p>Hello <strong>${user.name}</strong>,</p>
           <p>Great news! Your disbursement has been approved and paid out to your registered bank account.</p>

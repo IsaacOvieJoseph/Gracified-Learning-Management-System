@@ -306,6 +306,9 @@ router.post('/', auth, authorize('root_admin', 'school_admin', 'teacher', 'perso
             subject: `New Assignment: ${assignment.title}`,
             html: `
               <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                  <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg" alt="Gracified logo" style="max-height: 80px;">
+                </div>
                 <h2 style="color: #4f46e5;">New Assignment Posted</h2>
                 <p>Hello <strong>${recipient.name}</strong>,</p>
                 <p>A new assignment has been posted in <strong>${classroom.name}</strong>. Please check the details below:</p>
@@ -438,6 +441,9 @@ router.put('/:id', auth, authorize('root_admin', 'school_admin', 'teacher', 'per
             subject: `Assignment Updated: ${assignment.title}`,
             html: `
               <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                  <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg" alt="Gracified logo" style="max-height: 80px;">
+                </div>
                 <h2 style="color: #4f46e5;">Assignment Updated</h2>
                 <p>Hello <strong>${recipient.name}</strong>,</p>
                 <p>The assignment <strong>"${assignment.title}"</strong> in <strong>${classroom.name}</strong> has been updated.</p>
@@ -562,6 +568,9 @@ router.post('/:id/submit', auth, async (req, res) => {
           subject: `Assignment Graded: ${assignment.title}`,
           html: `
             <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+              <div style="text-align: center; margin-bottom: 20px;">
+                <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg" alt="Gracified logo" style="max-height: 80px;">
+              </div>
               <h2 style="color: #10b981;">Assignment Graded</h2>
               <p>Hello <strong>${req.user.name}</strong>,</p>
               <p>Your MCQ assignment for <strong>${classroomName}</strong> has been auto-graded.</p>
@@ -645,6 +654,9 @@ router.put('/:id/grade', auth, authorize('root_admin', 'school_admin', 'teacher'
           subject: `Assignment Graded: ${assignment.title}`,
           html: `
             <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+              <div style="text-align: center; margin-bottom: 20px;">
+                <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg" alt="Gracified logo" style="max-height: 80px;">
+              </div>
               <h2 style="color: #4f46e5;">Assignment Result Ready</h2>
               <p>Hello <strong>${student.name}</strong>,</p>
               <p>Your submission for <strong>"${assignment.title}"</strong> in <strong>${classroom.name}</strong> has been graded.</p>
@@ -771,6 +783,9 @@ router.put('/:id/grade-theory', auth, authorize('root_admin', 'school_admin', 't
           subject: `Theory Assignment Graded: ${assignment.title}`,
           html: `
             <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+              <div style="text-align: center; margin-bottom: 20px;">
+                <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg" alt="Gracified logo" style="max-height: 80px;">
+              </div>
               <h2 style="color: #4f46e5;">Theory Grade Released</h2>
               <p>Hello <strong>${student.name}</strong>,</p>
               <p>Excellent work! Your theory assignment <strong>"${assignment.title}"</strong> has been graded by your teacher.</p>

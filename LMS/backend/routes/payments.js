@@ -103,6 +103,9 @@ async function notifyRecipients({ payerUser, payment, classroom }) {
             subject: `Payment Processed: ${isSubscription ? 'Subscription' : 'Class Enrollment'}`,
             html: `
               <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                  <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg" alt="Gracified logo" style="max-height: 80px;">
+                </div>
                 <h2 style="color: #4f46e5;">Payment Confirmation</h2>
                 <p>Hello <strong>${user.name}</strong>,</p>
                 <p>${message}</p>

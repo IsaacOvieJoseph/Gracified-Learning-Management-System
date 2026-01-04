@@ -86,6 +86,9 @@ const generateAndSendOTP = async (user) => {
       subject: 'Email Verification OTP',
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg" alt="Gracified logo" style="max-height: 80px;">
+          </div>
           <h2 style="color: #4f46e5;">Email Verification</h2>
           <p>Hello <strong>${user.name}</strong>,</p>
           <p>Thank you for joining Gracified LMS. To complete your registration, please use the following One-Time Password (OTP):</p>
@@ -445,6 +448,9 @@ const generateAndSendPasswordResetOTP = async (user) => {
       subject: 'Password Reset OTP',
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg" alt="Gracified logo" style="max-height: 80px;">
+          </div>
           <h2 style="color: #4f46e5;">Password Reset Request</h2>
           <p>Hello <strong>${user.name}</strong>,</p>
           <p>We received a request to reset your password. Use the code below to proceed:</p>
