@@ -100,8 +100,9 @@ const Disbursements = () => {
                                 <tr>
                                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Class Owner</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Bank Details</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Payment Info</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Amount Due</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Payment Details</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Deductions</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Net Payout</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Action</th>
                                 </tr>
                             </thead>
@@ -134,10 +135,21 @@ const Disbursements = () => {
                                             <div className="text-xs text-gray-600">
                                                 <p className="flex items-center gap-1"><LayoutIcon size={12} /> {item.classroomId?.name || 'Class Enrollment'}</p>
                                                 <p className="flex items-center gap-1 text-gray-400"><Clock size={12} /> {new Date(item.paymentDate).toLocaleDateString()}</p>
+                                                <p className="mt-1 font-medium text-gray-500">Student Paid: {formatAmount(item.amount, item.currency)}</p>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                                            {formatAmount(item.amount, item.currency)}
+                                        <td className="px-6 py-4">
+                                            <div className="text-[10px] text-gray-500 space-y-0.5">
+                                                {item.taxAmount > 0 && <p>Tax ({item.taxRate}%): -{formatAmount(item.taxAmount, item.currency)}</p>}
+                                                {item.vatAmount > 0 && <p>VAT ({item.vatRate}%): -{formatAmount(item.vatAmount, item.currency)}</p>}
+                                                {item.serviceFeeAmount > 0 && <p>Fee ({item.serviceFeeRate}%): -{formatAmount(item.serviceFeeAmount, item.currency)}</p>}
+                                                {!(item.taxAmount > 0 || item.vatAmount > 0 || item.serviceFeeAmount > 0) && (
+                                                    <p className="italic">No deductions</p>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm font-bold text-indigo-600">
+                                            {formatAmount(item.payoutAmount || item.amount, item.currency)}
                                         </td>
                                         <td className="px-6 py-4">
                                             {activeTab === 'pending' ? (

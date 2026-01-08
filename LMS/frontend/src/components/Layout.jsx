@@ -130,6 +130,7 @@ const Layout = ({ children }) => {
     ...(['root_admin', 'school_admin', 'teacher', 'personal_teacher'].includes(user?.role) ? [{ path: '/users', icon: Users, label: 'Users' }] : []),
     ...(['root_admin', 'school_admin'].includes(user?.role) ? [{ path: '/schools', icon: Landmark, label: 'Schools' }] : []),
     ...(user?.role === 'root_admin' ? [{ path: '/disbursements', icon: Landmark, label: 'Disbursements' }] : []),
+    ...(user?.role === 'root_admin' ? [{ path: '/platform-settings', icon: Landmark, label: 'Platform Settings' }] : []),
   ];
 
   const isDashboard = location.pathname === '/dashboard';

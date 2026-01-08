@@ -56,7 +56,7 @@ router.post('/approve/:paymentId', auth, authorize('root_admin'), async (req, re
             // In-app notification
             await Notification.create({
                 userId: owner._id,
-                message: `Disbursement Approved: ₦${payment.amount} for ${payment.classroomId?.name || 'class enrollment'} has been paid to your bank account.`,
+                message: `Disbursement Approved: ₦${payment.payoutAmount || payment.amount} for ${payment.classroomId?.name || 'class enrollment'} has been paid to your bank account.`,
                 type: 'payout_received',
                 entityId: payment._id,
                 entityRef: 'Payment'
@@ -75,7 +75,7 @@ router.post('/approve/:paymentId', auth, authorize('root_admin'), async (req, re
                 <p>Hello ${owner.name},</p>
                 <p style="font-size: 16px; line-height: 1.5;">Great news! Your payout for <strong>${classroomName}</strong> has been approved and paid.</p>
                 <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin-top: 20px;">
-                  <p style="margin: 0;"><strong>Amount:</strong> ₦${payment.amount}</p>
+                  <p style="margin: 0;"><strong>Amount:</strong> ₦${payment.payoutAmount || payment.amount}</p>
                   <p style="margin: 0;"><strong>Status:</strong> Paid</p>
                 </div>
                 <p style="margin-top: 20px; font-size: 14px;">The funds should reflect in your registered bank account shortly.</p>

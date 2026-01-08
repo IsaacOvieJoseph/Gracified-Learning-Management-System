@@ -9,7 +9,40 @@ const axios = require('axios'); // Ensure axios is imported here
 const crypto = require('crypto');
 const { auth } = require('../middleware/auth');
 const { sendEmail } = require('../utils/email');
+const Settings = require('../models/Settings');
 const router = express.Router();
+
+// Helper: calculate payout breakdown based on platform settings
+async function calculatePayoutBreakdown(amount) {
+  try {
+    let settings = await Settings.findOne();
+    if (!settings) {
+      settings = { taxRate: 0, vatRate: 0, serviceFeeRate: 0 };
+    }
+
+    const taxAmount = (amount * settings.taxRate) / 100;
+    const vatAmount = (amount * settings.vatRate) / 100;
+    const serviceFeeAmount = (amount * settings.serviceFeeRate) / 100;
+    const payoutAmount = amount - (taxAmount + vatAmount + serviceFeeAmount);
+
+    return {
+      taxRate: settings.taxRate,
+      vatRate: settings.vatRate,
+      serviceFeeRate: settings.serviceFeeRate,
+      taxAmount,
+      vatAmount,
+      serviceFeeAmount,
+      payoutAmount
+    };
+  } catch (err) {
+    console.error('Error calculating payout breakdown:', err.message);
+    return {
+      taxRate: 0, vatRate: 0, serviceFeeRate: 0,
+      taxAmount: 0, vatAmount: 0, serviceFeeAmount: 0,
+      payoutAmount: amount
+    };
+  }
+}
 
 // Helper: notify recipients (in-app + email notify)
 async function notifyRecipients({ payerUser, payment, classroom }) {
@@ -238,8 +271,18 @@ router.get('/paystack/verify', auth, async (req, res) => {
           }
         }
 
+        const breakdown = await calculatePayoutBreakdown(payment.amount);
+
         payment.payoutOwnerId = payoutOwnerId;
         payment.payoutStatus = 'pending';
+        payment.taxRate = breakdown.taxRate;
+        payment.vatRate = breakdown.vatRate;
+        payment.serviceFeeRate = breakdown.serviceFeeRate;
+        payment.taxAmount = breakdown.taxAmount;
+        payment.vatAmount = breakdown.vatAmount;
+        payment.serviceFeeAmount = breakdown.serviceFeeAmount;
+        payment.payoutAmount = breakdown.payoutAmount;
+
         await payment.save();
       }
       // notify classroom stakeholders (teacher, school admin, root admins)
@@ -382,8 +425,18 @@ router.post('/paystack/webhook', express.raw({ type: 'application/json' }), asyn
             }
           }
 
+          const breakdown = await calculatePayoutBreakdown(payment.amount);
+
           payment.payoutOwnerId = payoutOwnerId;
           payment.payoutStatus = 'pending';
+          payment.taxRate = breakdown.taxRate;
+          payment.vatRate = breakdown.vatRate;
+          payment.serviceFeeRate = breakdown.serviceFeeRate;
+          payment.taxAmount = breakdown.taxAmount;
+          payment.vatAmount = breakdown.vatAmount;
+          payment.serviceFeeAmount = breakdown.serviceFeeAmount;
+          payment.payoutAmount = breakdown.payoutAmount;
+
           await payment.save();
         }
 
@@ -504,18 +557,45 @@ router.post('/confirm', auth, async (req, res) => {
 
     await payment.save();
 
+    const breakdown = await calculatePayoutBreakdown(payment.amount);
+    payment.taxRate = breakdown.taxRate;
+    payment.vatRate = breakdown.vatRate;
+    payment.serviceFeeRate = breakdown.serviceFeeRate;
+    payment.taxAmount = breakdown.taxAmount;
+    payment.vatAmount = breakdown.vatAmount;
+    payment.serviceFeeAmount = breakdown.serviceFeeAmount;
+    payment.payoutAmount = breakdown.payoutAmount;
+
     // Handle enrollment based on type
     if (type === 'class_enrollment' && classroomId) {
       const classroom = await Classroom.findById(classroomId);
-      if (classroom && !classroom.students.includes(req.user._id)) {
-        classroom.students.push(req.user._id);
-        await classroom.save();
+      if (classroom) {
+        if (!classroom.students.includes(req.user._id)) {
+          classroom.students.push(req.user._id);
+          await classroom.save();
 
-        await User.findByIdAndUpdate(req.user._id, {
-          $addToSet: { enrolledClasses: classroomId }
-        });
+          await User.findByIdAndUpdate(req.user._id, {
+            $addToSet: { enrolledClasses: classroomId }
+          });
+        }
+
+        // Set payout owner for disbursement
+        let payoutOwnerId = classroom.teacherId;
+        const teacher = await User.findById(classroom.teacherId);
+
+        if (teacher && teacher.role === 'teacher' && classroom.schoolId && classroom.schoolId.length > 0) {
+          const School = require('../models/School');
+          const school = await School.findById(classroom.schoolId[0]);
+          if (school && school.adminId) {
+            payoutOwnerId = school.adminId;
+          }
+        }
+
+        payment.payoutOwnerId = payoutOwnerId;
+        payment.payoutStatus = 'pending';
       }
     }
+    await payment.save();
 
     // Notify relevant parties (teacher, school admin, root admins) when payment saved
     try {

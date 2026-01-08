@@ -233,7 +233,10 @@ const Payments = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Payer</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Type</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Class/Topic</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">{user?.role === 'student' ? 'Amount' : 'Total Paid'}</th>
+                  {user?.role !== 'student' && (
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Net Payout</th>
+                  )}
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Status</th>
                 </tr>
               </thead>
@@ -256,6 +259,11 @@ const Payments = () => {
                       <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
                         {formatAmount(payment.amount, payment.currency || 'NGN')}
                       </td>
+                      {user?.role !== 'student' && (
+                        <td className="px-6 py-4 text-sm font-bold text-indigo-600 whitespace-nowrap">
+                          {payment.payoutAmount ? formatAmount(payment.payoutAmount, payment.currency || 'NGN') : '---'}
+                        </td>
+                      )}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
                           {getStatusIcon(payment.status)}

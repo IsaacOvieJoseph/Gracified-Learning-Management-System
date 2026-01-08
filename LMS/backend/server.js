@@ -57,6 +57,7 @@ app.use('/api/notifications/inapp', require('./routes/notifications-inapp'));
 app.use('/api/schools', require('./routes/schools'));
 app.use('/api/subscription-plans', require('./routes/subscriptionPlans')); // New subscription plans route
 app.use('/api/user-subscriptions', require('./routes/userSubscriptions')); // New user subscriptions route
+app.use('/api/settings', require('./routes/settings'));
 app.use('/api/disbursements', require('./routes/disbursements'));
 
 // Connect to MongoDB

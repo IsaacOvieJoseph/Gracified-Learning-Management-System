@@ -65,6 +65,13 @@ const paymentSchema = new mongoose.Schema({
     ref: 'User',
     default: null
   },
+  taxRate: { type: Number, default: 0 },
+  vatRate: { type: Number, default: 0 },
+  serviceFeeRate: { type: Number, default: 0 },
+  taxAmount: { type: Number, default: 0 },
+  vatAmount: { type: Number, default: 0 },
+  serviceFeeAmount: { type: Number, default: 0 },
+  payoutAmount: { type: Number, default: 0 },
   payoutApprovedAt: Date,
   payoutPaidAt: Date,
   payoutReference: String

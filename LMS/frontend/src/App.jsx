@@ -20,6 +20,7 @@ import RegisterPersonalTeacher from './pages/RegisterPersonalTeacher';
 import VerifyEmail from './pages/VerifyEmail';
 import SubscriptionManagement from './pages/SubscriptionManagement'; // Import new SubscriptionManagement component
 import Disbursements from './pages/Disbursements'; // Import new Disbursements component
+import PlatformSettings from './pages/PlatformSettings';
 import ForgotPassword from './pages/ForgotPassword';
 import { Toaster } from 'react-hot-toast';
 
@@ -221,6 +222,14 @@ const AppRoutes = () => {
         element={
           <PrivateRoute>
             <Disbursements />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/platform-settings"
+        element={
+          <PrivateRoute>
+            <PlatformSettings />
           </PrivateRoute>
         }
       />
