@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, GripVertical, Trash2, Loader2, CheckCircle, Clock, Circle, Play, Flag } from 'lucide-react';
+import { X, Plus, GripVertical, Trash2, Loader2, CheckCircle, Clock, Circle, Play, Flag, Book } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
 
@@ -337,8 +337,8 @@ const TopicManagementModal = ({ show, onClose, classroomId, onSuccess }) => {
                                 <div
                                     key={topic._id}
                                     className={`bg-white border-2 rounded-lg p-4 transition-all ${topic.status === 'active' ? 'border-blue-400 shadow-lg' :
-                                            topic.status === 'completed' ? 'border-green-200 opacity-75' :
-                                                'border-gray-200 hover:border-gray-300'
+                                        topic.status === 'completed' ? 'border-green-200 opacity-75' :
+                                            'border-gray-200 hover:border-gray-300'
                                         }`}
                                 >
                                     <div className="flex items-start justify-between">

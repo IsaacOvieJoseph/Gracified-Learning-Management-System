@@ -954,8 +954,8 @@ const ClassroomDetail = () => {
                   <div
                     key={topic._id}
                     className={`border-2 rounded-lg p-4 transition ${topic.status === 'active' ? 'border-blue-400 bg-blue-50' :
-                        topic.status === 'completed' ? 'border-green-200 bg-green-50 opacity-75' :
-                          'border-gray-200 bg-white hover:border-gray-300'
+                      topic.status === 'completed' ? 'border-green-200 bg-green-50 opacity-75' :
+                        'border-gray-200 bg-white hover:border-gray-300'
                       }`}
                   >
                     <div className="flex items-start gap-3">
@@ -1736,6 +1736,14 @@ const ClassroomDetail = () => {
           </div>
         </div>
       )}
+
+      {/* Topic Management Modal */}
+      <TopicManagementModal
+        show={showTopicModal}
+        onClose={() => setShowTopicModal(false)}
+        classroomId={id}
+        onSuccess={fetchClassroom}
+      />
     </Layout>
   );
 };
