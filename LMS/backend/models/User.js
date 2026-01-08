@@ -65,6 +65,11 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  defaultPricingType: {
+    type: String,
+    enum: ['per_meeting', 'per_topic', 'weekly', 'monthly', 'free'],
+    default: 'monthly',
+  },
   bankDetails: {
     bankName: String,
     bankCode: String,

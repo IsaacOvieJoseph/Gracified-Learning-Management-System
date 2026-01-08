@@ -12,6 +12,9 @@ const SubscriptionManagement = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [defaultPricingType, setDefaultPricingType] = useState('monthly');
+  const [updatingProfile, setUpdatingProfile] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, refreshUser } = useAuth();
@@ -85,7 +88,11 @@ const SubscriptionManagement = () => {
         toast.success(`Successfully subscribed to ${selectedPlan.name}!`);
         await refreshUser();
         setSubmitting(false);
-        navigate('/dashboard');
+        if (selectedPlan.planType === 'pay_as_you_go') {
+          setShowPricingModal(true);
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         // For paid plans (monthly, yearly), integrate with Paystack
         const usePaystack = !!import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || false;
@@ -108,7 +115,11 @@ const SubscriptionManagement = () => {
                     await api.get(`/payments/paystack/verify?reference=${encodeURIComponent(response.reference)}`);
                     toast.success(`Successfully subscribed to ${selectedPlan.name}!`);
                     await refreshUser();
-                    navigate('/dashboard');
+                    if (selectedPlan.planType === 'pay_as_you_go') {
+                      setShowPricingModal(true);
+                    } else {
+                      navigate('/dashboard');
+                    }
                   } catch (err) {
                     console.error('Subscription verification error:', err);
                     setError(err.response?.data?.message || 'Verification failed');
@@ -158,6 +169,21 @@ const SubscriptionManagement = () => {
       console.error('Subscription process error:', err);
       setError(err.response?.data?.message || err.message || 'Subscription failed');
       setSubmitting(false);
+    }
+  };
+
+  const handleSavePricingPreference = async () => {
+    setUpdatingProfile(true);
+    try {
+      await api.put('/auth/profile', { defaultPricingType });
+      toast.success('Your class fee preference has been saved.');
+      navigate('/dashboard');
+    } catch (err) {
+      toast.error('Failed to save preference, taking you to dashboard.');
+      navigate('/dashboard');
+    } finally {
+      setUpdatingProfile(false);
+      setShowPricingModal(false);
     }
   };
 
@@ -256,6 +282,50 @@ const SubscriptionManagement = () => {
         )}
 
       </div>
+
+      {showPricingModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[100]">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-8">
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">Set Default Class Fee</h3>
+            <p className="text-gray-600 mb-6">
+              As a Pay-As-You-Go user, how would you like to charge for your classes by default? You can change this individually for each class later.
+            </p>
+
+            <div className="space-y-3 mb-8">
+              {[
+                { id: 'monthly', label: 'Monthly' },
+                { id: 'weekly', label: 'Weekly' },
+                { id: 'per_meeting', label: 'Per Meeting' },
+                { id: 'per_topic', label: 'Per Topic' },
+                { id: 'free', label: 'Free' }
+              ].map((option) => (
+                <label
+                  key={option.id}
+                  className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${defaultPricingType === option.id ? 'border-indigo-600 bg-indigo-50' : 'border-gray-100 hover:border-gray-200'}`}
+                >
+                  <input
+                    type="radio"
+                    name="pricingType"
+                    value={option.id}
+                    checked={defaultPricingType === option.id}
+                    onChange={(e) => setDefaultPricingType(e.target.value)}
+                    className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-gray-300"
+                  />
+                  <span className="ml-3 font-semibold text-gray-800">{option.label}</span>
+                </label>
+              ))}
+            </div>
+
+            <button
+              onClick={handleSavePricingPreference}
+              disabled={updatingProfile}
+              className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+            >
+              {updatingProfile ? 'Saving...' : 'Confirm Preference'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

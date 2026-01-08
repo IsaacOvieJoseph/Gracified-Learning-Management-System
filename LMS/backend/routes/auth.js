@@ -746,5 +746,32 @@ router.put('/profile', auth, async (req, res) => {
 // });
 // ==========================================================
 
+// Update profile settings
+router.put('/profile', auth, async (req, res) => {
+  try {
+    const { defaultPricingType } = req.body;
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (defaultPricingType) {
+      user.defaultPricingType = defaultPricingType;
+    }
+
+    await user.save();
+    res.json({
+      message: 'Profile updated successfully', user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        defaultPricingType: user.defaultPricingType
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = router;
 

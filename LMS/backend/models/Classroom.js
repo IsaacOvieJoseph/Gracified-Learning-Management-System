@@ -48,8 +48,8 @@ const classroomSchema = new mongoose.Schema({
   pricing: {
     type: {
       type: String,
-      enum: ['per_class', 'per_topic', 'per_subject', 'free'],
-      default: 'per_class'
+      enum: ['per_meeting', 'per_topic', 'weekly', 'monthly', 'free'],
+      default: 'per_meeting'
     },
     amount: {
       type: Number,

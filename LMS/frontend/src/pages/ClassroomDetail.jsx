@@ -22,14 +22,14 @@ const ClassroomDetail = () => {
   const [loading, setLoading] = useState(true);
   const [showTopicModal, setShowTopicModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', description: '', capacity: 30, pricingType: 'per_class', pricingAmount: 0, schedule: [] });
+  const [editForm, setEditForm] = useState({ name: '', description: '', capacity: 30, pricingType: 'per_meeting', pricingAmount: 0, schedule: [] });
   // Open edit modal and prefill form
   const handleOpenEdit = () => {
     setEditForm({
       name: classroom.name || '',
       description: classroom.description || '',
       capacity: classroom.capacity || 30,
-      pricingType: classroom.pricing?.type || 'per_class',
+      pricingType: classroom.pricing?.type || 'per_meeting',
       pricingAmount: classroom.pricing?.amount || 0,
       isPaid: classroom.isPaid || false,
       schedule: classroom.schedule || [],
@@ -701,9 +701,11 @@ const ClassroomDetail = () => {
                               onChange={e => setEditForm({ ...editForm, pricingType: e.target.value })}
                               className="w-full px-4 py-2 border rounded-lg"
                             >
-                              <option value="per_class">Per Class</option>
+                              <option value="monthly">Monthly</option>
+                              <option value="weekly">Weekly</option>
+                              <option value="per_meeting">Per Meeting</option>
                               <option value="per_topic">Per Topic</option>
-                              <option value="per_subject">Per Subject</option>
+                              <option value="free">Free</option>
                             </select>
                           </div>
                         )}

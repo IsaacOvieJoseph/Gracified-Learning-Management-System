@@ -21,7 +21,7 @@ const Classrooms = () => {
     description: '',
     schedule: [],   // Changed from '' to []
     capacity: 30,
-    pricing: { type: 'per_class', amount: 0 },
+    pricing: { type: user?.defaultPricingType || 'monthly', amount: 0 },
     isPaid: false,
     teacherId: '',
     schoolIds: [], // Changed from schoolId
@@ -187,7 +187,7 @@ const Classrooms = () => {
         description: '',
         schedule: [],
         capacity: 30,
-        pricing: { type: 'per_class', amount: 0 },
+        pricing: { type: user?.defaultPricingType || 'monthly', amount: 0 },
         isPaid: false,
         teacherId: '',
         published: false
@@ -675,9 +675,11 @@ const Classrooms = () => {
                         })}
                         className="w-full px-4 py-2 border rounded-lg"
                       >
-                        <option value="per_class">Per Class</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="per_meeting">Per Meeting</option>
                         <option value="per_topic">Per Topic</option>
-                        <option value="per_subject">Per Subject</option>
+                        <option value="free">Free</option>
                       </select>
                     </div>
                   )}
