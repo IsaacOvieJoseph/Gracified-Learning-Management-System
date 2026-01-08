@@ -10,6 +10,8 @@ import { formatAmount } from '../utils/currency';
 import CreateAssignmentModal from '../components/CreateAssignmentModal';
 import GradeAssignmentModal from '../components/GradeAssignmentModal';
 import SubmitAssignmentModal from '../components/SubmitAssignmentModal';
+import TopicManagementModal from '../components/TopicManagementModal';
+import TopicDisplay from '../components/TopicDisplay';
 // import SubscriptionBlockModal from '../components/SubscriptionBlockModal';
 // Subscription block modal state (REMOVED)
 
@@ -918,57 +920,93 @@ const ClassroomDetail = () => {
           </div>
         </div>
 
+        {/* Current Topic Display */}
+        {classroom.currentTopicId && (
+          <TopicDisplay classroomId={id} />
+        )}
+
         {/* Topic Management Section */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-semibold">Topics</h3>
-            {canEdit && ( // 'canEdit' already includes teacher roles, so this is good
+            <div>
+              <h3 className="text-xl font-semibold">Topics</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                {classroom.topics?.length || 0} topic{classroom.topics?.length !== 1 ? 's' : ''} created
+              </p>
+            </div>
+            {canEdit && (
               <button
                 onClick={() => setShowTopicModal(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition shadow-md"
               >
-                <Plus className="w-4 h-4" />
-                <span className="hidden md:inline">Add Topic</span>
+                <Book className="w-4 h-4" />
+                <span>Manage Topics</span>
               </button>
             )}
           </div>
-
 
           <div className="space-y-3">
             {classroom.topics && classroom.topics.length > 0 ? (
               classroom.topics
                 .sort((a, b) => (a.order || 0) - (b.order || 0))
+                .slice(0, 5) // Show first 5 topics
                 .map((topic, index) => (
                   <div
                     key={topic._id}
-                    className={`border rounded-lg p-4 hover:bg-gray-50 transition flex items-start gap-3 ${canEdit ? 'cursor-move' : ''}`}
-                    draggable={canEdit}
-                    onDragStart={(e) => canEdit && handleDragStart(e, index)}
-                    onDragOver={(e) => canEdit && e.preventDefault()}
-                    onDrop={(e) => canEdit && handleDrop(e, index)}
+                    className={`border-2 rounded-lg p-4 transition ${topic.status === 'active' ? 'border-blue-400 bg-blue-50' :
+                        topic.status === 'completed' ? 'border-green-200 bg-green-50 opacity-75' :
+                          'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
                   >
-                    {canEdit && (
-                      <div className="mt-1 text-gray-400">
-                        <GripVertical className="w-5 h-5" />
+                    <div className="flex items-start gap-3">
+                      <div className="mt-1">
+                        {topic.status === 'completed' ? (
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                        ) : topic.status === 'active' ? (
+                          <Clock className="w-5 h-5 text-blue-600 animate-pulse" />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs text-gray-500">
+                            {index + 1}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-800">{topic.name}</h4>
-                      <p className="text-sm text-gray-600 mt-1">{topic.description}</p>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <h4 className="font-semibold text-gray-800">{topic.name}</h4>
+                          {topic.status === 'active' && (
+                            <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                              Current
+                            </span>
+                          )}
+                          {topic.status === 'completed' && (
+                            <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                              Done
+                            </span>
+                          )}
+                        </div>
+                        {topic.description && (
+                          <p className="text-sm text-gray-600 line-clamp-2">{topic.description}</p>
+                        )}
+                      </div>
                     </div>
-                    {canEdit && (
-                      <button
-                        onClick={() => handleDeleteTopic(topic._id)}
-                        className="text-red-500 hover:text-red-700 p-1"
-                        title="Delete topic"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    )}
                   </div>
                 ))
             ) : (
-              <p className="text-gray-500 text-center py-4">No topics added yet</p>
+              <div className="text-center py-8 text-gray-500">
+                <Book className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>No topics added yet</p>
+                {canEdit && (
+                  <p className="text-sm mt-1">Click "Manage Topics" to create your first topic</p>
+                )}
+              </div>
+            )}
+            {classroom.topics && classroom.topics.length > 5 && (
+              <button
+                onClick={() => setShowTopicModal(true)}
+                className="w-full py-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium transition"
+              >
+                View all {classroom.topics.length} topics →
+              </button>
             )}
           </div>
         </div>
