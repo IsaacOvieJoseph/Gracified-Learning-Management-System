@@ -7,7 +7,7 @@ const subscriptionCheck = async (req, res, next) => {
 
   try {
     // Root admin has full access
-    if (user.role === 'root_admin' ) {
+    if (user.role === 'root_admin') {
       return next();
     }
 
@@ -19,15 +19,21 @@ const subscriptionCheck = async (req, res, next) => {
           return res.status(403).json({ message: 'Your trial period has expired. Please choose a subscription plan to continue.', trialExpired: true });
         }
       }
-      // If not on trial, and not active/pay_as_you_go, deny access
-      else if (user.subscriptionStatus !== 'active' && user.subscriptionStatus !== 'pay_as_you_go') {
+      // If on active plan, check if it has expired
+      else if (user.subscriptionStatus === 'active') {
+        if (user.subscriptionEndDate && new Date(user.subscriptionEndDate) < new Date()) {
+          return res.status(403).json({ message: 'Your subscription has expired. Please renew your plan to continue.', subscriptionExpired: true });
+        }
+      }
+      // If none of the above (none, canceled, expired), and NOT pay_as_you_go, deny access
+      else if (user.subscriptionStatus !== 'pay_as_you_go') {
         return res.status(403).json({ message: 'You do not have an active subscription. Please choose a plan.', subscriptionRequired: true });
       }
       return next();
     }
 
     // For Teachers - no subscription blocking (removed subscription checks)
-    if (user.role === 'teacher' || user.role === 'student' ) {
+    if (user.role === 'teacher' || user.role === 'student') {
       return next();
     }
 
@@ -36,10 +42,10 @@ const subscriptionCheck = async (req, res, next) => {
     if (user.role === 'student') {
       // Get classroom from request if available
       const classroomId = req.params.classroomId || req.params.id || req.body.classroomId;
-      
+
       if (classroomId) {
         const classroom = await Classroom.findById(classroomId);
-        
+
         if (!classroom) {
           return res.status(404).json({ message: 'Classroom not found' });
         }

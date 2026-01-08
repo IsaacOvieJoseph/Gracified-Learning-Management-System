@@ -76,13 +76,10 @@ const SubscriptionManagement = () => {
     try {
       await loadPaystackScript();
 
-      // For trial/pay-as-you-go, no immediate payment, just update user subscription
-      if (selectedPlan.planType === 'trial' || selectedPlan.planType === 'pay_as_you_go') {
-        await api.post('/user-subscriptions', {
-          userId: user._id,
-          planId: selectedPlan._id,
-          status: selectedPlan.planType === 'trial' ? 'trial' : 'pay_as_you_go',
-          startDate: new Date(),
+      // Use the 'Payment API' for free plans (Trial / 0-price PAYG)
+      if (selectedPlan.price === 0) {
+        await api.post('/payments/free-subscription', {
+          planId: selectedPlan._id
         });
 
         toast.success(`Successfully subscribed to ${selectedPlan.name}!`);
@@ -295,7 +292,7 @@ const SubscriptionManagement = () => {
               {[
                 { id: 'monthly', label: 'Monthly' },
                 { id: 'weekly', label: 'Weekly' },
-                { id: 'per_meeting', label: 'Per Meeting' },
+                { id: 'per_lecture', label: 'Per Lecture' },
                 { id: 'per_topic', label: 'Per Topic' },
                 { id: 'free', label: 'Free' }
               ].map((option) => (

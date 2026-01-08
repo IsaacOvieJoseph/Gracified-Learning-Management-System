@@ -137,9 +137,20 @@ const Layout = ({ children }) => {
   let shouldBlock = false;
 
   if (user && (user.role === 'school_admin' || user.role === 'personal_teacher')) {
-    const isTrial = user.subscriptionStatus === 'trial';
-    const trialValid = isTrial && user.trialEndDate && new Date(user.trialEndDate) > new Date() && !user.trialExpired;
-    shouldBlock = user.subscriptionStatus !== 'active' && !trialValid;
+    if (user.subscriptionStatus === 'pay_as_you_go') {
+      shouldBlock = false;
+    } else {
+      const isTrial = user.subscriptionStatus === 'trial';
+      const isExpired = user.subscriptionStatus === 'expired' || user.trialExpired || user.subscriptionExpired;
+
+      // If it's a trial, it must be within trialEndDate and not trialExpired
+      const trialValid = isTrial && user.trialEndDate && new Date(user.trialEndDate) > new Date() && !user.trialExpired;
+
+      // If it's active, it must not be subscriptionExpired
+      const activeValid = user.subscriptionStatus === 'active' && !user.subscriptionExpired;
+
+      shouldBlock = !trialValid && !activeValid;
+    }
   }
 
   return (

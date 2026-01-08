@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }) => {
 
     try {
       const response = await api.get('/auth/me');
-      const { user: fetchedUser, trialExpired } = response.data; // Extract trialExpired
+      const { user: fetchedUser, trialExpired, subscriptionExpired } = response.data; // Extract flags
       console.log('AuthContext verifyToken: Token verification successful. User data:', fetchedUser, 'trialExpired:', trialExpired);
 
       // Ensure schoolId and tutorialId are stored as plain IDs
@@ -42,8 +42,8 @@ export const AuthProvider = ({ children }) => {
         tutorialId: fetchedUser.tutorialId?._id || fetchedUser.tutorialId || null,
       };
 
-      // Use existing token (not response.data.token which doesn't exist)
-      setAuthData(existingToken, cleanedUser, trialExpired);
+      // Use existing token
+      setAuthData(existingToken, cleanedUser, trialExpired, subscriptionExpired);
       // No need for separate setUser/localStorage.setItem calls as setAuthData handles it
 
     } catch (error) {
@@ -68,13 +68,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const setAuthData = (token, user, trialExpired = false) => {
+  const setAuthData = (token, user, trialExpired = false, subscriptionExpired = false) => {
     // If token is null/undefined, preserve existing token from localStorage
     const tokenToUse = token || localStorage.getItem('token') || '';
     setAuthToken(tokenToUse); // Set token on api instance immediately
     // Ensure user object explicitly contains isVerified: true after OTP success
     const userWithVerifiedStatus = user ? { ...user, isVerified: user.isVerified || false } : null;
-    const finalUser = userWithVerifiedStatus ? { ...userWithVerifiedStatus, trialExpired: trialExpired || false } : null;
+    const finalUser = userWithVerifiedStatus ? {
+      ...userWithVerifiedStatus,
+      trialExpired: trialExpired || false,
+      subscriptionExpired: subscriptionExpired || false
+    } : null;
 
     // Only update token if a new token was provided
     if (token) {
@@ -90,7 +94,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await api.post('/auth/login', { email, password }, { skipLoader: true });
       console.log('AuthContext login: Raw response data from /auth/login:', response.data);
-      const { token, user, redirectToVerify, trialExpired } = response.data;
+      const { token, user, redirectToVerify, trialExpired, subscriptionExpired } = response.data;
       console.log('AuthContext login: Extracted data - token present:', !!token, 'user present:', !!user, 'redirectToVerify:', redirectToVerify, 'trialExpired:', trialExpired);
 
       if (redirectToVerify) {
@@ -105,19 +109,20 @@ export const AuthProvider = ({ children }) => {
         tutorialId: user.tutorialId?._id || user.tutorialId || null,
       };
 
-      setAuthData(token, cleanedUser, trialExpired);
+      setAuthData(token, cleanedUser, trialExpired, subscriptionExpired);
       console.log('AuthContext login: User logged in and state updated. User:', cleanedUser);
 
-      return { success: true, trialExpired: trialExpired || false };
+      return { success: true, trialExpired: trialExpired || false, subscriptionExpired: subscriptionExpired || false };
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Login failed';
       const redirectToVerify = error.response?.data?.redirectToVerify || false;
       const unverifiedEmail = error.response?.data?.email || null;
       const trialExpired = error.response?.data?.trialExpired || false;
+      const subscriptionExpired = error.response?.data?.subscriptionExpired || false;
       console.error('AuthContext login: Login failed:', errorMessage, { redirectToVerify, unverifiedEmail, trialExpired });
 
       if (redirectToVerify && unverifiedEmail) {
-        return { success: false, redirectToVerify: true, email: unverifiedEmail, message: errorMessage, trialExpired: trialExpired };
+        return { success: false, redirectToVerify: true, email: unverifiedEmail, message: errorMessage, trialExpired, subscriptionExpired };
       }
 
       return { success: false, message: errorMessage };
@@ -133,13 +138,13 @@ export const AuthProvider = ({ children }) => {
   const refreshUser = async () => {
     try {
       const response = await api.get('/auth/me');
-      const { user: fetchedUser, trialExpired } = response.data;
+      const { user: fetchedUser, trialExpired, subscriptionExpired } = response.data;
       const cleanedUser = {
         ...fetchedUser,
         schoolId: fetchedUser.schoolId?._id || fetchedUser.schoolId || null,
         tutorialId: fetchedUser.tutorialId?._id || fetchedUser.tutorialId || null,
       };
-      setAuthData(null, cleanedUser, trialExpired);
+      setAuthData(null, cleanedUser, trialExpired, subscriptionExpired);
       return true;
     } catch (error) {
       console.error('Failed to refresh user:', error);

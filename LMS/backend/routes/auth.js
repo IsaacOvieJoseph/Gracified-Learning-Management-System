@@ -364,9 +364,13 @@ router.post('/login', async (req, res) => {
 
     // Check subscription status for School Admin and Personal Teacher
     let trialExpired = false;
-    if ((user.role === 'school_admin' || user.role === 'personal_teacher') && user.subscriptionStatus === 'trial') {
-      if (user.trialEndDate && user.trialEndDate < Date.now()) {
+    let subscriptionExpired = false;
+    if ((user.role === 'school_admin' || user.role === 'personal_teacher')) {
+      if (user.subscriptionStatus === 'trial' && user.trialEndDate && user.trialEndDate < Date.now()) {
         trialExpired = true;
+      }
+      if (user.subscriptionStatus === 'active' && user.subscriptionEndDate && user.subscriptionEndDate < Date.now()) {
+        subscriptionExpired = true;
       }
     }
 
@@ -390,8 +394,11 @@ router.post('/login', async (req, res) => {
         enrolledClasses: user.enrolledClasses,
         subscriptionStatus: user.subscriptionStatus,
         trialEndDate: user.trialEndDate,
+        subscriptionEndDate: user.subscriptionEndDate,
+        defaultPricingType: user.defaultPricingType
       },
       trialExpired,
+      subscriptionExpired,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -409,16 +416,20 @@ router.get('/me', auth, async (req, res) => {
 
     // Check subscription status for School Admin and Personal Teacher
     let trialExpired = false;
-    if ((user.role === 'school_admin' || user.role === 'personal_teacher') && user.subscriptionStatus === 'trial') {
-      if (user.trialEndDate && user.trialEndDate < Date.now()) {
+    let subscriptionExpired = false;
+    if ((user.role === 'school_admin' || user.role === 'personal_teacher')) {
+      if (user.subscriptionStatus === 'trial' && user.trialEndDate && user.trialEndDate < Date.now()) {
         trialExpired = true;
+      }
+      if (user.subscriptionStatus === 'active' && user.subscriptionEndDate && user.subscriptionEndDate < Date.now()) {
+        subscriptionExpired = true;
       }
     }
 
     res.json({
       user: {
         id: user._id,
-        _id: user._id, // ensure _id is present
+        _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -428,8 +439,11 @@ router.get('/me', auth, async (req, res) => {
         enrolledClasses: user.enrolledClasses,
         subscriptionStatus: user.subscriptionStatus,
         trialEndDate: user.trialEndDate,
+        subscriptionEndDate: user.subscriptionEndDate,
+        defaultPricingType: user.defaultPricingType
       },
       trialExpired,
+      subscriptionExpired,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

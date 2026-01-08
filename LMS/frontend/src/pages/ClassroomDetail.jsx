@@ -22,14 +22,14 @@ const ClassroomDetail = () => {
   const [loading, setLoading] = useState(true);
   const [showTopicModal, setShowTopicModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', description: '', capacity: 30, pricingType: 'per_meeting', pricingAmount: 0, schedule: [] });
+  const [editForm, setEditForm] = useState({ name: '', description: '', capacity: 30, pricingType: 'per_lecture', pricingAmount: 0, schedule: [] });
   // Open edit modal and prefill form
   const handleOpenEdit = () => {
     setEditForm({
       name: classroom.name || '',
       description: classroom.description || '',
       capacity: classroom.capacity || 30,
-      pricingType: classroom.pricing?.type || 'per_meeting',
+      pricingType: classroom.pricing?.type || 'per_lecture',
       pricingAmount: classroom.pricing?.amount || 0,
       isPaid: classroom.isPaid || false,
       schedule: classroom.schedule || [],
@@ -544,9 +544,16 @@ const ClassroomDetail = () => {
               <div className="flex flex-wrap items-center gap-3 mb-2">
                 <h2 className="text-2xl md:text-3xl font-bold text-gray-800">{classroom.name}</h2>
                 {classroom.isPaid && classroom.pricing?.amount > 0 ? (
-                  <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
-                    {formatAmount(classroom.pricing?.amount || 0, classroom.pricing?.currency || 'NGN')}
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
+                      {formatAmount(classroom.pricing?.amount || 0, classroom.pricing?.currency || 'NGN')}
+                    </span>
+                    {classroom.pricing?.type && classroom.pricing.type !== 'free' && (
+                      <span className="text-[10px] text-gray-500 font-medium uppercase mt-1 text-center">
+                        {classroom.pricing.type.replace('_', ' ')}
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
                     Free
@@ -703,7 +710,7 @@ const ClassroomDetail = () => {
                             >
                               <option value="monthly">Monthly</option>
                               <option value="weekly">Weekly</option>
-                              <option value="per_meeting">Per Meeting</option>
+                              <option value="per_lecture">Per Lecture</option>
                               <option value="per_topic">Per Topic</option>
                               <option value="free">Free</option>
                             </select>

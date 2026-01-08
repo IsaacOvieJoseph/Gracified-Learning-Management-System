@@ -308,15 +308,17 @@ router.get('/paystack/verify', auth, async (req, res) => {
           endDate.setFullYear(endDate.getFullYear() + 1);
         }
 
+        const status = plan.planType === 'pay_as_you_go' ? 'pay_as_you_go' : 'active';
+
         await UserSubscription.findOneAndUpdate(
           { userId: req.user._id },
-          { planId: plan._id, status: 'active', startDate, endDate, paymentId: payment._id },
+          { planId: plan._id, status, startDate, endDate, paymentId: payment._id },
           { upsert: true, new: true }
         );
 
         await User.findByIdAndUpdate(req.user._id, {
           subscriptionPlan: plan._id,
-          subscriptionStatus: 'active',
+          subscriptionStatus: status,
           subscriptionStartDate: startDate,
           subscriptionEndDate: endDate
         });
@@ -608,6 +610,70 @@ router.post('/confirm', auth, async (req, res) => {
 
     res.json({ message: 'Payment confirmed and enrollment completed', payment });
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Handle free trial and 0-price PAYG activations (User-facing 'Payment API' for free plans)
+router.post('/free-subscription', auth, async (req, res) => {
+  try {
+    const { planId } = req.body;
+    const SubscriptionPlan = require('../models/SubscriptionPlan');
+    const UserSubscription = require('../models/UserSubscription');
+
+    const plan = await SubscriptionPlan.findById(planId);
+    if (!plan) return res.status(404).json({ message: 'Subscription plan not found' });
+    if (plan.price > 0) return res.status(400).json({ message: 'This plan requires a paid transaction' });
+
+    const startDate = new Date();
+    let endDate = null;
+    if (plan.planType === 'trial') {
+      endDate = new Date();
+      endDate.setDate(endDate.getDate() + (plan.durationDays || 30));
+    }
+
+    const status = plan.planType === 'pay_as_you_go' ? 'pay_as_you_go' : 'trial';
+
+    await UserSubscription.findOneAndUpdate(
+      { userId: req.user._id },
+      { planId: plan._id, status, startDate, endDate },
+      { upsert: true, new: true }
+    );
+
+    await User.findByIdAndUpdate(req.user._id, {
+      subscriptionPlan: plan._id,
+      subscriptionStatus: status,
+      subscriptionStartDate: startDate,
+      subscriptionEndDate: endDate
+    });
+
+    // Create a zero-amount payment record for tracking and invoicing
+    const payment = new Payment({
+      userId: req.user._id,
+      type: 'subscription',
+      planId: plan._id,
+      amount: 0,
+      currency: 'NGN',
+      status: 'completed',
+      paymentDate: new Date()
+    });
+    await payment.save();
+
+    // notify admins
+    try {
+      const payerUser = await User.findById(req.user._id).select('email name _id');
+      await notifyRecipients({ payerUser, payment, classroom: null });
+    } catch (notifyErr) {
+      console.error('Error notifying admins for free sub:', notifyErr.message);
+    }
+
+    res.json({
+      message: `Successfully subscribed to ${plan.name}`,
+      subscriptionStatus: status,
+      paymentId: payment._id
+    });
+  } catch (error) {
+    console.error('Free subscription error:', error.message);
     res.status(500).json({ message: error.message });
   }
 });
