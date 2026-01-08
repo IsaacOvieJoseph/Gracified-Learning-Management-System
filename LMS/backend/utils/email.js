@@ -82,7 +82,8 @@ async function sendEmail({ to, subject, html, classroomId }) {
   sendSmtpEmail.htmlContent = finalHtml;
 
   try {
-    await brevoEmailApi.sendTransacEmail(sendSmtpEmail);
+    const result = await brevoEmailApi.sendTransacEmail(sendSmtpEmail);
+    return result;
   } catch (err) {
     console.error('Brevo sendEmail error:', err.message);
     throw err;
