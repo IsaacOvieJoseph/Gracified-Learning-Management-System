@@ -1,7 +1,7 @@
 const brevo = require('@getbrevo/brevo');
 const defaultClient = brevo.ApiClient.instance;
 const apiKey = defaultClient.authentications['api-key'];
-apiKey.apiKey = process.env.BREVO_API_KEY;
+apiKey.apiKey = (process.env.BREVO_API_KEY || '').trim();
 
 const brevoEmailApi = new brevo.TransactionalEmailsApi();
 
@@ -11,10 +11,10 @@ const brevoEmailApi = new brevo.TransactionalEmailsApi();
  * @param {string} customLogoUrl - Optional school/tutorial logo URL
  */
 function wrapEmail(content, customLogoUrl = null) {
-    const gracifiedLogo = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg`;
-    const headerLogo = customLogoUrl || gracifiedLogo;
+  const gracifiedLogo = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpg`;
+  const headerLogo = customLogoUrl || gracifiedLogo;
 
-    return `
+  return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
         <div style="text-align: center; margin-bottom: 25px;">
           <img src="${headerLogo}" alt="Logo" style="max-height: 80px; width: auto; object-fit: contain;">
@@ -40,53 +40,53 @@ function wrapEmail(content, customLogoUrl = null) {
  * @param {Object} options - { to, subject, html, classroomId }
  */
 async function sendEmail({ to, subject, html, classroomId }) {
-    let customLogoUrl = null;
+  let customLogoUrl = null;
 
-    if (classroomId) {
-        try {
-            const Classroom = require('../models/Classroom');
-            const School = require('../models/School');
-            const Tutorial = require('../models/Tutorial');
-            const User = require('../models/User');
-
-            const classroom = await Classroom.findById(classroomId).populate('teacherId');
-            if (classroom) {
-                if (classroom.schoolId && classroom.schoolId.length > 0) {
-                    const school = await School.findById(classroom.schoolId[0]);
-                    if (school && school.logoUrl) customLogoUrl = school.logoUrl;
-                } else if (classroom.teacherId && classroom.teacherId.tutorialId) {
-                    const tutorial = await Tutorial.findById(classroom.teacherId.tutorialId);
-                    if (tutorial && tutorial.logoUrl) customLogoUrl = tutorial.logoUrl;
-                }
-            }
-        } catch (err) {
-            console.error('Error fetching custom logo for email:', err.message);
-        }
-    }
-
-    const finalHtml = wrapEmail(html, customLogoUrl);
-
-    const sender = {
-        name: 'Gracified LMS',
-        email: process.env.BREVO_FROM_EMAIL || process.env.BREVO_SENDER_EMAIL || 'no-reply@gracifiedlms.com'
-    };
-
-    const receivers = Array.isArray(to)
-        ? to.map(email => ({ email }))
-        : [{ email: to }];
-
-    const sendSmtpEmail = new brevo.SendSmtpEmail();
-    sendSmtpEmail.sender = sender;
-    sendSmtpEmail.to = receivers;
-    sendSmtpEmail.subject = subject;
-    sendSmtpEmail.htmlContent = finalHtml;
-
+  if (classroomId) {
     try {
-        await brevoEmailApi.sendTransacEmail(sendSmtpEmail);
+      const Classroom = require('../models/Classroom');
+      const School = require('../models/School');
+      const Tutorial = require('../models/Tutorial');
+      const User = require('../models/User');
+
+      const classroom = await Classroom.findById(classroomId).populate('teacherId');
+      if (classroom) {
+        if (classroom.schoolId && classroom.schoolId.length > 0) {
+          const school = await School.findById(classroom.schoolId[0]);
+          if (school && school.logoUrl) customLogoUrl = school.logoUrl;
+        } else if (classroom.teacherId && classroom.teacherId.tutorialId) {
+          const tutorial = await Tutorial.findById(classroom.teacherId.tutorialId);
+          if (tutorial && tutorial.logoUrl) customLogoUrl = tutorial.logoUrl;
+        }
+      }
     } catch (err) {
-        console.error('Brevo sendEmail error:', err.message);
-        throw err;
+      console.error('Error fetching custom logo for email:', err.message);
     }
+  }
+
+  const finalHtml = wrapEmail(html, customLogoUrl);
+
+  const sender = {
+    name: 'Gracified LMS',
+    email: process.env.BREVO_FROM_EMAIL || process.env.BREVO_SENDER_EMAIL || 'no-reply@gracifiedlms.com'
+  };
+
+  const receivers = Array.isArray(to)
+    ? to.map(email => ({ email }))
+    : [{ email: to }];
+
+  const sendSmtpEmail = new brevo.SendSmtpEmail();
+  sendSmtpEmail.sender = sender;
+  sendSmtpEmail.to = receivers;
+  sendSmtpEmail.subject = subject;
+  sendSmtpEmail.htmlContent = finalHtml;
+
+  try {
+    await brevoEmailApi.sendTransacEmail(sendSmtpEmail);
+  } catch (err) {
+    console.error('Brevo sendEmail error:', err.message);
+    throw err;
+  }
 }
 
 module.exports = { sendEmail, wrapEmail };

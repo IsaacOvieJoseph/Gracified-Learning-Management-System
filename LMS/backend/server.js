@@ -1,7 +1,8 @@
+const dotenv = require('dotenv');
+dotenv.config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const dotenv = require('dotenv');
 const http = require('http');
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
@@ -11,8 +12,6 @@ const User = require('./models/User');
 const Classroom = require('./models/Classroom');
 const Whiteboard = require('./models/Whiteboard');
 const { startScheduler } = require('./utils/scheduler');
-
-dotenv.config();
 
 const app = express();
 
