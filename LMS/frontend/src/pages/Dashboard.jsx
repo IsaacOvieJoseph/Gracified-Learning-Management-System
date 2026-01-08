@@ -5,6 +5,7 @@ import Layout from '../components/Layout';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { formatAmount } from '../utils/currency';
+import { convertUTCToLocal } from '../utils/timezone';
 
 import CreateSchoolModal from './Schools';
 
@@ -255,11 +256,15 @@ const Dashboard = () => {
                         <span className="flex items-center">
                           <Calendar className="w-4 h-4 mr-1 text-gray-400" />
                           {classroom.schedule && classroom.schedule.length > 0 ? (
-                            classroom.schedule.map((session, index) => (
-                              <span key={index} className="mr-2">
-                                {session.dayOfWeek.substring(0, 3)} {session.startTime}-{session.endTime}
-                              </span>
-                            ))
+                            classroom.schedule.map((session, index) => {
+                              const local = convertUTCToLocal(session.dayOfWeek, session.startTime);
+                              const localEnd = convertUTCToLocal(session.dayOfWeek, session.endTime);
+                              return (
+                                <span key={index} className="mr-2">
+                                  {local.dayOfWeek.substring(0, 3)} {local.time}-{localEnd.time}
+                                </span>
+                              );
+                            })
                           ) : (
                             <span>No schedule available</span>
                           )}
@@ -328,7 +333,12 @@ const Dashboard = () => {
                         </span>
                         <span className="flex items-center">
                           <Calendar className="w-3.5 h-3.5 mr-1 text-gray-400" />
-                          {classroom.schedule?.[0]?.dayOfWeek.substring(0, 3)} {classroom.schedule?.[0]?.startTime}
+                          {(() => {
+                            const first = classroom.schedule?.[0];
+                            if (!first) return 'No schedule';
+                            const local = convertUTCToLocal(first.dayOfWeek, first.startTime);
+                            return `${local.dayOfWeek.substring(0, 3)} ${local.time}`;
+                          })()}
                           {classroom.schedule?.length > 1 && ` +${classroom.schedule.length - 1} more`}
                         </span>
                         {user?.role !== 'student' && (

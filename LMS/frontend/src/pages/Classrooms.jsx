@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
-import { Plus, Calendar, Users, Book, Video, Edit, Eye, EyeOff, Search, Trash2, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Calendar, Users, Book, Video, Edit, Eye, EyeOff, Search, Trash2, Loader2, ChevronDown, ChevronRight, Clock } from 'lucide-react';
+import { convertLocalToUTC, convertUTCToLocal } from '../utils/timezone';
 import Select from 'react-select';
 import Layout from '../components/Layout';
 import api from '../utils/api';
@@ -150,7 +151,16 @@ const Classrooms = () => {
     try {
       const submitData = {
         ...formData,
-        isPaid: formData.isPaid && formData.pricing?.amount > 0
+        isPaid: formData.isPaid && formData.pricing?.amount > 0,
+        schedule: formData.schedule.map(s => {
+          const utc = convertLocalToUTC(s.dayOfWeek, s.startTime);
+          const utcEnd = convertLocalToUTC(s.dayOfWeek, s.endTime);
+          return {
+            dayOfWeek: utc.dayOfWeek,
+            startTime: utc.time,
+            endTime: utcEnd.time
+          };
+        })
       };
       if (user?.role === 'school_admin') {
         let schoolIdToSend = null;
@@ -318,12 +328,16 @@ const Classrooms = () => {
                 <div className="truncate">
                   {classroom.schedule && classroom.schedule.length > 0 ? (
                     <>
-                      {classroom.schedule.slice(0, 2).map((session, index) => (
-                        <span key={index} className="mr-1">
-                          {session.dayOfWeek ? session.dayOfWeek.substring(0, 3) : 'N/A'} {session.startTime}-{session.endTime}
-                          {index < Math.min(classroom.schedule.length, 2) - 1 ? ',' : ''}
-                        </span>
-                      ))}
+                      {classroom.schedule.slice(0, 2).map((session, index) => {
+                        const local = convertUTCToLocal(session.dayOfWeek, session.startTime);
+                        const localEnd = convertUTCToLocal(session.dayOfWeek, session.endTime);
+                        return (
+                          <span key={index} className="mr-1">
+                            {local.dayOfWeek ? local.dayOfWeek.substring(0, 3) : 'N/A'} {local.time}-{localEnd.time}
+                            {index < Math.min(classroom.schedule.length, 2) - 1 ? ',' : ''}
+                          </span>
+                        );
+                      })}
                       {classroom.schedule.length > 2 && (
                         <span className="text-gray-400">+{classroom.schedule.length - 2} more</span>
                       )}

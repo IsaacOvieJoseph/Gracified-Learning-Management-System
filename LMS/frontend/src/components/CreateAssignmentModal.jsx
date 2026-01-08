@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { Plus, X, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { toLocalISOString } from '../utils/timezone';
 
 const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, availableTopics, editAssignment }) => {
   const [createForm, setCreateForm] = useState({
@@ -26,10 +27,10 @@ const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, av
         description: editAssignment.description || '',
         classroomId: editAssignment.classroomId?._id || editAssignment.classroomId || classroomId || '',
         topicId: editAssignment.topicId?._id || editAssignment.topicId || '',
-        dueDate: editAssignment.dueDate ? new Date(editAssignment.dueDate).toISOString().split('T')[0] : '',
+        dueDate: editAssignment.dueDate ? toLocalISOString(editAssignment.dueDate).split('T')[0] : '',
         maxScore: editAssignment.maxScore || 100,
         assignmentType: editAssignment.assignmentType || 'theory',
-        publishResultsAt: editAssignment.publishResultsAt ? new Date(editAssignment.publishResultsAt).toISOString().slice(0, 16) : '',
+        publishResultsAt: editAssignment.publishResultsAt ? toLocalISOString(editAssignment.publishResultsAt) : '',
         questions: editAssignment.questions || [{ questionText: '', options: ['', ''], correctOption: '', markingPreference: 'manual', maxScore: 0 }]
       });
       setOverallMaxScoreInput(editAssignment.maxScore || 100);
@@ -167,11 +168,18 @@ const CreateAssignmentModal = ({ show, onClose, onSubmitSuccess, classroomId, av
         }));
       }
 
+      const submitData = {
+        ...createForm,
+        // Convert to UTC before sending
+        publishResultsAt: createForm.publishResultsAt ? new Date(createForm.publishResultsAt).toISOString() : '',
+        dueDate: createForm.dueDate ? new Date(createForm.dueDate).toISOString() : ''
+      };
+
       if (editAssignment) {
-        await api.put(`/assignments/${editAssignment._id}`, createForm, { skipLoader: true });
+        await api.put(`/assignments/${editAssignment._id}`, submitData, { skipLoader: true });
         toast.success('Assignment updated successfully!');
       } else {
-        await api.post('/assignments', createForm, { skipLoader: true });
+        await api.post('/assignments', submitData, { skipLoader: true });
         toast.success('Assignment created successfully!');
       }
       onClose();

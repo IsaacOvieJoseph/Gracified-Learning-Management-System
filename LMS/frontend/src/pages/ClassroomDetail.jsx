@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Video, Edit, Plus, Calendar, Users, User, Book, DollarSign, X, UserPlus, FileText, CheckCircle, Send, ChevronDown, ChevronUp, GripVertical, Trash2, Loader2 } from 'lucide-react'; // Added User icon
+import { Video, Edit, Plus, Calendar, Users, User, Book, DollarSign, X, UserPlus, FileText, CheckCircle, Send, ChevronDown, ChevronUp, GripVertical, Trash2, Loader2, Clock, ExternalLink, Globe, Share2, Facebook, Twitter, Linkedin, Copy } from 'lucide-react';
+import { convertLocalToUTC, convertUTCToLocal, formatDisplayDate } from '../utils/timezone';
 import Layout from '../components/Layout';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -32,7 +33,15 @@ const ClassroomDetail = () => {
       pricingType: classroom.pricing?.type || 'per_lecture',
       pricingAmount: classroom.pricing?.amount || 0,
       isPaid: classroom.isPaid || false,
-      schedule: classroom.schedule || [],
+      schedule: (classroom.schedule || []).map(s => {
+        const local = convertUTCToLocal(s.dayOfWeek, s.startTime);
+        const localEnd = convertUTCToLocal(s.dayOfWeek, s.endTime);
+        return {
+          dayOfWeek: local.dayOfWeek,
+          startTime: local.time,
+          endTime: localEnd.time
+        };
+      }),
       teacherId: classroom.teacherId?._id || ''
     });
     if ((user?.role === 'root_admin' || user?.role === 'school_admin') && classroom.schoolId && classroom.teacherId?.role !== 'personal_teacher') {
@@ -51,7 +60,15 @@ const ClassroomDetail = () => {
         capacity: editForm.capacity,
         pricing: { type: editForm.pricingType, amount: editForm.pricingAmount },
         isPaid: editForm.isPaid,
-        schedule: editForm.schedule
+        schedule: editForm.schedule.map(s => {
+          const utc = convertLocalToUTC(s.dayOfWeek, s.startTime);
+          const utcEnd = convertLocalToUTC(s.dayOfWeek, s.endTime);
+          return {
+            dayOfWeek: utc.dayOfWeek,
+            startTime: utc.time,
+            endTime: utcEnd.time
+          };
+        })
       };
       // Only allow teacher change if permitted
       if ((user?.role === 'root_admin' || user?.role === 'school_admin') && classroom.schoolId && classroom.teacherId?.role !== 'personal_teacher' && editForm.teacherId && editForm.teacherId !== classroom.teacherId?._id) {
@@ -784,11 +801,15 @@ const ClassroomDetail = () => {
               <div className="text-sm">
                 {classroom.schedule && classroom.schedule.length > 0 ? (
                   <div className="flex flex-wrap gap-1">
-                    {classroom.schedule.map((session, index) => (
-                      <span key={index} className="bg-gray-100 px-2 py-0.5 rounded text-xs">
-                        {session.dayOfWeek ? session.dayOfWeek.substring(0, 3) : 'N/A'} {session.startTime}-{session.endTime}
-                      </span>
-                    ))}
+                    {classroom.schedule.map((session, index) => {
+                      const local = convertUTCToLocal(session.dayOfWeek, session.startTime);
+                      const localEnd = convertUTCToLocal(session.dayOfWeek, session.endTime);
+                      return (
+                        <span key={index} className="bg-gray-100 px-2 py-0.5 rounded text-xs">
+                          {local.dayOfWeek ? local.dayOfWeek.substring(0, 3) : 'N/A'} {local.time}-{localEnd.time}
+                        </span>
+                      );
+                    })}
                   </div>
                 ) : (
                   <span className="text-gray-400">No schedule</span>
@@ -1018,7 +1039,7 @@ const ClassroomDetail = () => {
                       <div className="flex flex-wrap gap-2 items-center md:justify-end flex-shrink-0 w-full md:w-auto ml-8 md:ml-0">
                         {assignment.dueDate ? (
                           <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-semibold">
-                            Due: {new Date(assignment.dueDate).toLocaleDateString()}
+                            Due: {formatDisplayDate(assignment.dueDate)}
                           </span>
                         ) : (
                           <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-semibold">
@@ -1027,7 +1048,7 @@ const ClassroomDetail = () => {
                         )}
                         {assignment.assignmentType === 'mcq' && assignment.publishResultsAt && (
                           <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-semibold">
-                            Results: {new Date(assignment.publishResultsAt).toLocaleDateString()}
+                            Results: {formatDisplayDate(assignment.publishResultsAt)}
                             {/* Only show "Pending" if results not published AND student hasn't submitted yet */}
                             {new Date() < new Date(assignment.publishResultsAt) && !isSubmitted && (
                               <span className="ml-1 bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-semibold">Pending</span>

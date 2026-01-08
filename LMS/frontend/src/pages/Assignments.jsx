@@ -8,6 +8,7 @@ import CreateAssignmentModal from '../components/CreateAssignmentModal';
 import GradeAssignmentModal from '../components/GradeAssignmentModal'; // Import the new modal component
 import SubmitAssignmentModal from '../components/SubmitAssignmentModal';
 import { Edit, Trash2, X, Loader2 } from 'lucide-react';
+import { formatDisplayDate } from '../utils/timezone';
 
 const Assignments = () => {
   const { user, loading: userLoading } = useAuth();
@@ -387,7 +388,7 @@ const Assignments = () => {
                       <div className="flex items-center space-x-4 text-sm text-gray-600 mb-4">
                         <div className="flex items-center">
                           <Calendar className="w-4 h-4 mr-1" />
-                          Due: {assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'N/A'}
+                          Due: {formatDisplayDate(assignment.dueDate)}
                         </div>
                         <div className="flex items-center">
                           <FileText className="w-4 h-4 mr-1" />
@@ -396,7 +397,7 @@ const Assignments = () => {
                         {assignment.assignmentType === 'mcq' && assignment.publishResultsAt && (
                           <div className="flex items-center">
                             <Book className="w-4 h-4 mr-1" />
-                            Results Publish: {new Date(assignment.publishResultsAt).toLocaleDateString()} {new Date(assignment.publishResultsAt).toLocaleTimeString()}
+                            Results Publish: {formatDisplayDate(assignment.publishResultsAt)}
                             {/* Only show "Pending" if results not published AND student hasn't submitted yet */}
                             {new Date() < new Date(assignment.publishResultsAt) && !isSubmitted && (
                               <span className="ml-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-semibold">
@@ -463,7 +464,7 @@ const Assignments = () => {
                         <div className="bg-gray-50 rounded-lg p-4 mb-4">
                           <p className="font-semibold text-blue-600">
                             {isGraded && assignment.assignmentType === 'mcq' && assignment.publishResultsAt && new Date() < new Date(assignment.publishResultsAt)
-                              ? `Results for this MCQ assignment will be published on ${new Date(assignment.publishResultsAt).toLocaleString()}.`
+                              ? `Results for this MCQ assignment will be published on ${formatDisplayDate(assignment.publishResultsAt)}.`
                               : 'Your assignment has been submitted and is awaiting grading.'
                             }
                           </p>

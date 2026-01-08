@@ -6,6 +6,7 @@ import Layout from '../components/Layout';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { formatAmount } from '../utils/currency';
+import { formatDisplayDate } from '../utils/timezone';
 
 const Payments = () => {
   const { user } = useAuth();
@@ -246,7 +247,7 @@ const Payments = () => {
                   payments.map((payment) => (
                     <tr key={payment._id}>
                       <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
-                        {new Date(payment.paymentDate).toLocaleString()}
+                        {formatDisplayDate(payment.paymentDate)}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
                         {payment.userId?.name || payment.userId?.email || 'Unknown'}

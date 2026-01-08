@@ -10,23 +10,17 @@ const checkAndSendReminders = async (forcedTime = null) => {
     try {
         const now = forcedTime ? new Date(forcedTime) : new Date();
 
-        // Use TIMEZONE_OFFSET from env (in minutes, e.g. 60 for WAT)
-        const offset = parseInt(process.env.TIMEZONE_OFFSET || '0');
-        if (offset !== 0) {
-            now.setMinutes(now.getMinutes() + offset);
-        }
-
         // Adjust to +15 minutes for reminder
         const reminderTime = new Date(now.getTime() + 15 * 60 * 1000);
 
         const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const currentDay = dayNames[reminderTime.getDay()];
+        const currentDay = dayNames[reminderTime.getUTCDay()];
 
-        const hours = reminderTime.getHours().toString().padStart(2, '0');
-        const minutes = reminderTime.getMinutes().toString().padStart(2, '0');
+        const hours = reminderTime.getUTCHours().toString().padStart(2, '0');
+        const minutes = reminderTime.getUTCMinutes().toString().padStart(2, '0');
         const timeStr = `${hours}:${minutes}`;
 
-        console.log(`[Scheduler] Checking for classes starting at ${timeStr} on ${currentDay} (Server Time: ${new Date().toISOString()})`);
+        console.log(`[Scheduler] Checking for classes starting at ${timeStr} UTC on ${currentDay} (Server Time: ${new Date().toISOString()})`);
 
         // Find classrooms with sessions starting in 15 minutes
         const classrooms = await Classroom.find({
