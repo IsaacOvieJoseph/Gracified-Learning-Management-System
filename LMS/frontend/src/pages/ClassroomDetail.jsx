@@ -365,8 +365,8 @@ const ClassroomDetail = () => {
       }
     } catch (error) {
       if (error.response?.data?.googleAuthRequired) {
-        setShowGoogleAuth(true);
-        toast('Google authorization required. Please authorize to continue.');
+        // Redirect user to backend Google consent flow
+        window.location.href = `/api/google-auth/start-consent?userId=${user?._id}&classroomId=${id}`;
       } else {
         toast.error(error.response?.data?.message || 'Error starting meeting');
       }

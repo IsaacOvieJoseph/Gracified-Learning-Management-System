@@ -2,6 +2,57 @@ const express = require('express');
 const { google } = require('googleapis');
 const User = require('../models/User');
 const router = express.Router();
+// Step 0: Start consent flow (redirect user to Google)
+router.get('/start-consent', async (req, res) => {
+  const { userId, classroomId } = req.query;
+  if (!userId || !classroomId) return res.status(400).send('Missing userId or classroomId');
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const frontendBase = process.env.FRONTEND_URL || 'http://localhost:3000';
+  // Redirect URI should point to backend callback
+  const redirectUri = `${req.protocol}://${req.get('host')}/api/google-auth/oauth-callback`;
+  const oAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  const scopes = ['https://www.googleapis.com/auth/calendar'];
+  const url = oAuth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: scopes,
+    prompt: 'consent',
+    state: JSON.stringify({ userId, classroomId, frontendBase })
+  });
+  res.redirect(url);
+});
+
+// Step 1: OAuth callback (Google redirects here with code)
+router.get('/oauth-callback', async (req, res) => {
+  const { code, state } = req.query;
+  if (!code || !state) return res.status(400).send('Missing code or state');
+  let parsedState;
+  try {
+    parsedState = JSON.parse(state);
+  } catch {
+    return res.status(400).send('Invalid state');
+  }
+  const { userId, classroomId, frontendBase } = parsedState;
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const redirectUri = `${req.protocol}://${req.get('host')}/api/google-auth/oauth-callback`;
+  const oAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  try {
+    const { tokens } = await oAuth2Client.getToken(code);
+    if (!tokens.refresh_token) {
+      return res.status(400).send('No refresh token received. Try again with prompt=consent.');
+    }
+    await User.findByIdAndUpdate(userId, { googleOAuthRefreshToken: tokens.refresh_token });
+    // Redirect to classroom page
+    return res.redirect(`${frontendBase}/classrooms/${classroomId}`);
+  } catch (err) {
+    return res.status(500).send('Failed to save Google token: ' + err.message);
+  }
+});
+// Duplicate removed
+// Duplicate removed
+// Duplicate removed
+// Duplicate removed
 
 // Step 1: Get Google OAuth URL for user to authorize
 router.get('/url', async (req, res) => {
