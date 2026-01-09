@@ -24,6 +24,7 @@ const Layout = ({ children }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const notificationsRef = useRef(null);
+  const mobileNotificationsRef = useRef(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const loadingCountRef = useRef(0);
@@ -78,7 +79,10 @@ const Layout = ({ children }) => {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
+      const isDesktopClick = notificationsRef.current && notificationsRef.current.contains(event.target);
+      const isMobileClick = mobileNotificationsRef.current && mobileNotificationsRef.current.contains(event.target);
+
+      if (!isDesktopClick && !isMobileClick) {
         setShowNotifications(false);
       }
     };
@@ -199,7 +203,10 @@ const Layout = ({ children }) => {
                   </button>
 
                   {showNotifications && (
-                    <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50"
+                    >
                       <div className="p-4 border-b border-gray-200 flex justify-between items-center">
                         <h4 className="font-semibold text-gray-800">Notifications</h4>
                         {unreadCount > 0 && (
@@ -260,7 +267,7 @@ const Layout = ({ children }) => {
             <div className="md:hidden flex items-center space-x-4">
               {/* Notifications also visible on mobile */}
               {user && (
-                <div className="relative" ref={notificationsRef}>
+                <div className="relative" ref={mobileNotificationsRef}>
                   <button
                     onClick={() => setShowNotifications(!showNotifications)}
                     className="relative p-2 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
@@ -274,7 +281,10 @@ const Layout = ({ children }) => {
                   </button>
                   {/* Mobile Notification Dropdown (same as desktop slightly adjusted) */}
                   {showNotifications && (
-                    <div className="absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-50"
+                    >
                       <div className="p-4 border-b border-gray-200 flex justify-between items-center">
                         <h4 className="font-semibold text-gray-800">Notifications</h4>
                         {unreadCount > 0 && (
