@@ -4,7 +4,7 @@ const User = require('../models/User');
 const router = express.Router();
 // Step 0: Start consent flow (redirect user to Google)
 router.get('/start-consent', async (req, res) => {
-  const { userId, classroomId } = req.query;
+  const { userId, classroomId, debug } = req.query;
   if (!userId || !classroomId) return res.status(400).send('Missing userId or classroomId');
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
@@ -19,6 +19,20 @@ router.get('/start-consent', async (req, res) => {
     prompt: 'consent',
     state: JSON.stringify({ userId, classroomId, frontendBase })
   });
+  console.log('[Google OAuth] start-consent:', {
+    userId,
+    classroomId,
+    redirectUri,
+    url
+  });
+  if (debug === '1') {
+    return res.json({
+      userId,
+      classroomId,
+      redirectUri,
+      url
+    });
+  }
   res.redirect(url);
 });
 
