@@ -353,9 +353,23 @@ const Classrooms = () => {
                   {classroom.students?.length || 0} students enrolled
                 </div>
               )}
-              <div className="flex items-center text-sm text-gray-600">
-                <Book className="w-4 h-4 mr-2" />
-                {classroom.topics?.length || 0} topics
+              <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                <div className="flex items-center">
+                  <Book className="w-4 h-4 mr-2" />
+                  {classroom.topics?.length || 0} topics
+                </div>
+                {(() => {
+                  const currentTopic = classroom.topics?.find(t => t.status === 'active');
+                  if (currentTopic) {
+                    return (
+                      <div className="flex items-center px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[11px] font-bold border border-blue-100">
+                        <Clock className="w-3 h-3 mr-1 animate-pulse" />
+                        Current: {currentTopic.name}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             </div>
 

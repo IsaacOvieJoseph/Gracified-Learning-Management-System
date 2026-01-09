@@ -116,6 +116,9 @@ const Dashboard = () => {
         );
         if (newAssignments.length > 0) activities.push({ type: 'assignment', label: `${newAssignments.length} New Assignment${newAssignments.length > 1 ? 's' : ''}` });
 
+        const activeTopic = c.topics?.find(t => t.status === 'active');
+        if (activeTopic) activities.push({ type: 'topic', label: `Topic: ${activeTopic.name}` });
+
         // if (new Date(c.updatedAt) > threeDaysAgo) {
         //   activities.push({ type: 'update', label: 'Recently Updated' });
         // }
@@ -243,11 +246,13 @@ const Dashboard = () => {
                             key={idx}
                             className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium space-x-1 ${act.type === 'meeting' ? 'bg-red-100 text-red-800 animate-pulse' :
                               act.type === 'assignment' ? 'bg-orange-100 text-orange-800' :
-                                'bg-green-100 text-green-800'
+                                act.type === 'topic' ? 'bg-blue-100 text-blue-800' :
+                                  'bg-green-100 text-green-800'
                               }`}
                           >
                             {act.type === 'meeting' && <Monitor className="w-3 h-3" />}
                             {act.type === 'assignment' && <AlertCircle className="w-3 h-3" />}
+                            {act.type === 'topic' && <Clock className="w-3 h-3 animate-pulse" />}
                             <span>{act.label}</span>
                           </span>
                         ))}
@@ -275,6 +280,10 @@ const Dashboard = () => {
                             {classroom.students?.length || 0} enrolled
                           </span>
                         )}
+                        <span className="flex items-center">
+                          <Book className="w-4 h-4 mr-1 text-gray-400" />
+                          {classroom.topics?.length || 0} topics
+                        </span>
                       </div>
                     </div>
                     <div className="mt-2 md:mt-0 flex flex-wrap items-center gap-2">
@@ -347,6 +356,18 @@ const Dashboard = () => {
                             {classroom.students?.length || 0} students
                           </span>
                         )}
+                        {(() => {
+                          const currentTopic = classroom.topics?.find(t => t.status === 'active');
+                          if (currentTopic) {
+                            return (
+                              <span className="flex items-center bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">
+                                <Clock className="w-3 h-3 mr-1 animate-pulse" />
+                                Current: {currentTopic.name}
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     </div>
                     <div className="mt-2 md:mt-0">

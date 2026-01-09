@@ -69,7 +69,7 @@ router.get('/', auth, subscriptionCheck, async (req, res) => {
         }
       })
       .populate('students', 'name email')
-      .populate('topics', 'name description')
+      .populate('topics', 'name description status order')
       .populate({
         path: 'schoolId',
         select: 'name adminId',
@@ -130,7 +130,7 @@ router.get('/:id', auth, subscriptionCheck, async (req, res) => {
         }
       })
       .populate('students', 'name email')
-      .populate('topics', 'name description materials')
+      .populate('topics', 'name description materials status order')
       .populate({
         path: 'assignments',
         populate: [
