@@ -88,6 +88,11 @@ const userSchema = new mongoose.Schema({
       default: null,
     },
   },
+  // Field for storing Google OAuth refresh token for Meet integration
+  googleOAuthRefreshToken: {
+    type: String,
+    default: null,
+  },
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {

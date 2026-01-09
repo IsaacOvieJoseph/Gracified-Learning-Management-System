@@ -12,8 +12,7 @@ import GradeAssignmentModal from '../components/GradeAssignmentModal';
 import SubmitAssignmentModal from '../components/SubmitAssignmentModal';
 import TopicManagementModal from '../components/TopicManagementModal';
 import TopicDisplay from '../components/TopicDisplay';
-// import SubscriptionBlockModal from '../components/SubscriptionBlockModal';
-// Subscription block modal state (REMOVED)
+import GoogleMeetAuth from '../components/GoogleMeetAuth';
 
 const ClassroomDetail = () => {
   const { id } = useParams();
@@ -26,6 +25,7 @@ const ClassroomDetail = () => {
   const [showTopicModal, setShowTopicModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', description: '', capacity: 30, pricingType: 'per_lecture', pricingAmount: 0, schedule: [] });
+  const [showGoogleAuth, setShowGoogleAuth] = useState(false);
   // Open edit modal and prefill form
   const handleOpenEdit = () => {
     setEditForm({
@@ -364,7 +364,12 @@ const ClassroomDetail = () => {
         toast.error('Could not create meeting link');
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Error starting meeting');
+      if (error.response?.data?.googleAuthRequired) {
+        setShowGoogleAuth(true);
+        toast('Google authorization required. Please authorize to continue.');
+      } else {
+        toast.error(error.response?.data?.message || 'Error starting meeting');
+      }
     }
   };
 
@@ -1726,6 +1731,15 @@ const ClassroomDetail = () => {
         classroomId={id}
         onSuccess={fetchClassroom}
       />
+
+      {showGoogleAuth && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', padding: 24, borderRadius: 8, minWidth: 320, maxWidth: 400 }}>
+            <GoogleMeetAuth userId={user?._id} />
+            <button style={{ marginTop: 16 }} onClick={() => setShowGoogleAuth(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };

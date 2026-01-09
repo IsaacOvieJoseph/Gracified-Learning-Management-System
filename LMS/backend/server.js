@@ -59,6 +59,8 @@ app.use('/api/subscription-plans', require('./routes/subscriptionPlans')); // Ne
 app.use('/api/user-subscriptions', require('./routes/userSubscriptions')); // New user subscriptions route
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/disbursements', require('./routes/disbursements'));
+const googleAuthRouter = require('./routes/googleAuth');
+app.use('/api/google-auth', googleAuthRouter);
 
 // Connect to MongoDB
 const connectDB = async () => {

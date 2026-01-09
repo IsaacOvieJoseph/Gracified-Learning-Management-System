@@ -7,10 +7,9 @@ const { v4: uuidv4 } = require('uuid');
 // 2) Service account + domain-wide delegation: set GOOGLE_SERVICE_ACCOUNT_JSON and GOOGLE_IMPERSONATED_USER
 // OAuth2 refresh token is attempted first; if neither is available the caller should handle the error.
 
-function createOAuth2ClientFromEnv() {
+function createOAuth2ClientFromEnv(refreshToken) {
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  const refreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
   const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI || 'urn:ietf:wg:oauth:2.0:oob';
   if (!clientId || !clientSecret || !refreshToken) return null;
 
@@ -57,8 +56,8 @@ function createJwtClientFromEnv() {
  *  - endTime: Date or ISO string
  *  - attendees: array of email strings
  */
-async function createGoogleMeet({ summary = 'Class Meeting', description = '', startTime = new Date(), endTime = null, attendees = [] } = {}) {
-  const oAuth2Client = createOAuth2ClientFromEnv();
+async function createGoogleMeet({ summary = 'Class Meeting', description = '', startTime = new Date(), endTime = null, attendees = [], refreshToken = null } = {}) {
+  const oAuth2Client = createOAuth2ClientFromEnv(refreshToken);
   let authClient = null;
 
   if (oAuth2Client) {

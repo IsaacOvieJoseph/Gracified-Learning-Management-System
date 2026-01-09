@@ -810,7 +810,24 @@ router.post('/:id/call/start', auth, subscriptionCheck, async (req, res) => {
       let htmlLink = null;
       try {
         const { createGoogleMeet } = require('../utils/googleMeet');
-        const meet = await createGoogleMeet({ summary: `Class: ${classroom.name}`, attendees: [] });
+        // Fetch initiator's Google OAuth refresh token and its last update time
+        const initiator = await User.findById(user._id).select('googleOAuthRefreshToken updatedAt');
+        let refreshToken = initiator?.googleOAuthRefreshToken || null;
+        let needsGoogleAuth = false;
+        if (!refreshToken) {
+          needsGoogleAuth = true;
+        } else {
+          // Check if token is older than 6 days
+          const tokenAgeMs = Date.now() - new Date(initiator.updatedAt).getTime();
+          const sixDaysMs = 6 * 24 * 60 * 60 * 1000;
+          if (tokenAgeMs > sixDaysMs) {
+            needsGoogleAuth = true;
+          }
+        }
+        if (needsGoogleAuth) {
+          return res.status(403).json({ message: 'Google authorization required', googleAuthRequired: true });
+        }
+        const meet = await createGoogleMeet({ summary: `Class: ${classroom.name}`, attendees: [], refreshToken });
         link = meet.meetUrl || generateGoogleMeetLink();
         eventId = meet.eventId || null;
         htmlLink = meet.htmlLink || null;
@@ -829,7 +846,24 @@ router.post('/:id/call/start', auth, subscriptionCheck, async (req, res) => {
         let htmlLink = null;
         try {
           const { createGoogleMeet } = require('../utils/googleMeet');
-          const meet = await createGoogleMeet({ summary: `Class: ${classroom.name}`, attendees: [] });
+          // Fetch initiator's Google OAuth refresh token and its last update time
+          const initiator = await User.findById(user._id).select('googleOAuthRefreshToken updatedAt');
+          let refreshToken = initiator?.googleOAuthRefreshToken || null;
+          let needsGoogleAuth = false;
+          if (!refreshToken) {
+            needsGoogleAuth = true;
+          } else {
+            // Check if token is older than 6 days
+            const tokenAgeMs = Date.now() - new Date(initiator.updatedAt).getTime();
+            const sixDaysMs = 6 * 24 * 60 * 60 * 1000;
+            if (tokenAgeMs > sixDaysMs) {
+              needsGoogleAuth = true;
+            }
+          }
+          if (needsGoogleAuth) {
+            return res.status(403).json({ message: 'Google authorization required', googleAuthRequired: true });
+          }
+          const meet = await createGoogleMeet({ summary: `Class: ${classroom.name}`, attendees: [], refreshToken });
           link = meet.meetUrl || generateGoogleMeetLink();
           eventId = meet.eventId || null;
           htmlLink = meet.htmlLink || null;
