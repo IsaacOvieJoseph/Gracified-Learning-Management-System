@@ -10,7 +10,7 @@ router.get('/start-consent', async (req, res) => {
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   const frontendBase = process.env.FRONTEND_URL || 'http://localhost:3000';
   // Redirect URI should point to backend callback
-  const redirectUri = `${req.protocol}://${req.get('host')}/api/google-auth/oauth-callback`;
+  const redirectUri = `https://${req.get('host')}/api/google-auth/oauth-callback`;
   const oAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
   const scopes = ['https://www.googleapis.com/auth/calendar'];
   const url = oAuth2Client.generateAuthUrl({
@@ -49,7 +49,7 @@ router.get('/oauth-callback', async (req, res) => {
   const { userId, classroomId, frontendBase } = parsedState;
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  const redirectUri = `${req.protocol}://${req.get('host')}/api/google-auth/oauth-callback`;
+  const redirectUri = `https://${req.get('host')}/api/google-auth/oauth-callback`;
   const oAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
   try {
     const { tokens } = await oAuth2Client.getToken(code);
