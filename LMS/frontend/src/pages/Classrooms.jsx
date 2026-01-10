@@ -107,6 +107,7 @@ const Classrooms = () => {
       console.error('Error fetching classrooms:', error);
     } finally {
       setLoading(false);
+      setPublishingClassId(null);
     }
   };
 
@@ -134,8 +135,6 @@ const Classrooms = () => {
       fetchClassrooms();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error updating publish status');
-    } finally {
-      setPublishingClassId(null);
     }
   };
 
