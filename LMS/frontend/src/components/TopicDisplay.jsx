@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Book, Clock, CheckCircle, Circle, Calendar } from 'lucide-react';
 import api from '../utils/api';
 import { formatDisplayDate } from '../utils/timezone';
+import { useAuth } from '../context/AuthContext';
 
 
 const TopicDisplay = ({ classroomId }) => {
@@ -10,6 +11,7 @@ const TopicDisplay = ({ classroomId }) => {
     const [showPaidTopics, setShowPaidTopics] = useState(false);
     const [topicStatus, setTopicStatus] = useState(null); // { paidTopics, unpaidTopics, totalUnpaidAmount, allTopics }
     const [paying, setPaying] = useState(false);
+    const { user } = useAuth();
 
 
     useEffect(() => {
@@ -161,7 +163,7 @@ const TopicDisplay = ({ classroomId }) => {
             </div>
 
             {/* Paid/Unpaid Topics and Payment Options */}
-            {showPaidTopics && topicStatus && (
+            {user && !['root_admin', 'school_admin', 'personal_teacher', 'teacher'].includes(user.role) && showPaidTopics && topicStatus && (
                 <div className="mt-6">
                     <h4 className="font-semibold mb-2">Your Topic Access</h4>
                     <div className="flex flex-wrap gap-2 mb-2">
