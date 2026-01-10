@@ -210,6 +210,8 @@ router.get('/:id', auth, subscriptionCheck, async (req, res) => {
       }
       if (currentTopic && currentTopic.isPaid && currentTopic.price > 0) {
         dynamicTopicPrice = currentTopic.price;
+        // Override classroom.pricing.amount for frontend convenience
+        classroom.pricing.amount = currentTopic.price;
       }
     }
     res.json({ classroom, dynamicTopicPrice, showPaidTopics });

@@ -285,7 +285,17 @@ const Classrooms = () => {
                 </p>
               </div>
               <div className="flex flex-col items-end space-y-1">
-                {classroom.isPaid && classroom.pricing?.amount > 0 ? (
+                {/* Show dynamic topic price if available, else fallback to class price */}
+                {classroom.dynamicTopicPrice ? (
+                  <div className="flex flex-col items-end">
+                    <span className="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-semibold">
+                      ₦{classroom.dynamicTopicPrice}
+                    </span>
+                    <span className="text-[10px] text-gray-500 font-medium uppercase mt-0.5">
+                      PER TOPIC
+                    </span>
+                  </div>
+                ) : classroom.isPaid && classroom.pricing?.amount > 0 ? (
                   <div className="flex flex-col items-end">
                     <span className="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-semibold">
                       {formatAmount(classroom.pricing?.amount || 0, classroom.pricing?.currency || 'NGN')}
