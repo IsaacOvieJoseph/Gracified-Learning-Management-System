@@ -23,7 +23,8 @@ const notificationSchema = new mongoose.Schema({
       'new_submission',
       'assignment_graded',
       'subscription_success',
-      'student_enrolled' // Added for enrollment notifications
+      'student_enrolled', // Added for enrollment notifications
+      'topic_activated' // Added for topic activation notifications
     ],
     required: true,
   },

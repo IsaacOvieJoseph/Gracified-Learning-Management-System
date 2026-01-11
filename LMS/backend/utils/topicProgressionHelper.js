@@ -1,5 +1,6 @@
 const Topic = require('../models/Topic');
 const Classroom = require('../models/Classroom');
+const { notifyTopicActivated } = require('./topicNotificationHelper');
 
 /**
  * Calculate expected end date based on duration
@@ -111,6 +112,9 @@ const markTopicComplete = async (topicId, userId, activateNext = true) => {
             await Classroom.findByIdAndUpdate(topic.classroomId, {
                 currentTopicId: nextTopic._id
             });
+
+            // Send notifications
+            notifyTopicActivated(nextTopic._id).catch(err => console.error('Error sending topic activation notification:', err.message));
         }
 
         return { completedTopic: topic, nextTopic };
@@ -164,6 +168,9 @@ const activateTopic = async (topicId) => {
     await Classroom.findByIdAndUpdate(topic.classroomId, {
         currentTopicId: topic._id
     });
+
+    // Send notifications
+    notifyTopicActivated(topic._id).catch(err => console.error('Error sending topic activation notification:', err.message));
 
     return topic;
 };
