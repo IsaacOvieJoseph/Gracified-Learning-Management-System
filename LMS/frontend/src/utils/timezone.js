@@ -43,9 +43,20 @@ export const convertUTCToLocal = (dayOfWeek, time) => {
     // Create a date in UTC
     const date = new Date(Date.UTC(1970, 0, 4 + dayIndex, hours, minutes));
 
+    const offset = -date.getTimezoneOffset();
+    const absOffset = Math.abs(offset);
+    const hoursOffset = Math.floor(absOffset / 60);
+    const minsOffset = absOffset % 60;
+    const sign = offset >= 0 ? '+' : '-';
+    const gmtString = `GMT${sign}${hoursOffset.toString().padStart(2, '0')}:${minsOffset.toString().padStart(2, '0')}`;
+
+    const hhmm = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+
     return {
         dayOfWeek: DAYS[date.getDay()],
-        time: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+        time: `${hhmm} (${gmtString})`,
+        hhmm,
+        timezone: gmtString
     };
 };
 
@@ -66,5 +77,12 @@ export const toLocalISOString = (date) => {
  */
 export const formatDisplayDate = (date) => {
     if (!date) return 'N/A';
-    return new Date(date).toLocaleString();
+    return new Date(date).toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZoneName: 'short'
+    });
 };

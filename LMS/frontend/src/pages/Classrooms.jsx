@@ -353,7 +353,7 @@ const Classrooms = () => {
                         const localEnd = convertUTCToLocal(session.dayOfWeek, session.endTime);
                         return (
                           <span key={index} className="mr-1">
-                            {local.dayOfWeek ? local.dayOfWeek.substring(0, 3) : 'N/A'} {local.time}-{localEnd.time}
+                            {local.dayOfWeek ? local.dayOfWeek.substring(0, 3) : 'N/A'} {local.hhmm}-{localEnd.hhmm} ({local.timezone})
                             {index < Math.min(classroom.schedule.length, 2) - 1 ? ',' : ''}
                           </span>
                         );

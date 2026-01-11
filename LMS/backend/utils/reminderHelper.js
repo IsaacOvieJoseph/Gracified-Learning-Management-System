@@ -57,7 +57,7 @@ const checkAndSendReminders = async (forcedTime = null) => {
             for (const { user, role } of recipients) {
                 if (!user || !user.email) continue;
 
-                let message = `Reminder: Your class "${classroom.name}" starts in 15 minutes at ${timeStr}.`;
+                let message = `Reminder: Your class "${classroom.name}" starts in 15 minutes at ${timeStr} (GMT).`;
                 if (topicInfo) {
                     message += ` Current topic: ${topicInfo.name}`;
                 }
@@ -83,7 +83,7 @@ const checkAndSendReminders = async (forcedTime = null) => {
                       <p>This is a reminder that your class session is starting soon:</p>
                       <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0;">
                         <p style="margin: 5px 0;"><strong>Class:</strong> ${classroom.name}</p>
-                        <p style="margin: 5px 0;"><strong>Starts At:</strong> ${timeStr}</p>
+                        <p style="margin: 5px 0;"><strong>Starts At:</strong> ${timeStr} (GMT)</p>
                         <p style="margin: 5px 0;"><strong>Day:</strong> ${currentDay}</p>`;
 
                     if (topicInfo) {

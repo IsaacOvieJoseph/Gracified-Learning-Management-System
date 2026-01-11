@@ -40,7 +40,7 @@ router.post('/class-reminder/:classroomId', internalAuth, async (req, res) => {
         <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0;">
           <p style="margin: 5px 0;"><strong>Class:</strong> ${classroom.name}</p>
           <p style="margin: 5px 0;"><strong>Schedule:</strong> ${classroom.schedule}</p>
-          <p style="margin: 5px 0;"><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+          <p style="margin: 5px 0;"><strong>Time:</strong> ${new Date().toLocaleString()} (GMT)</p>
         </div>
         <p>Please be prepared and join the session on time.</p>
         <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/classrooms/${classroom._id}" 
@@ -100,7 +100,7 @@ router.post('/assignment-reminder/:assignmentId', internalAuth, async (req, res)
         <div style="background-color: #fffbeb; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
           <p style="margin: 5px 0;"><strong>Assignment:</strong> ${assignment.title}</p>
           <p style="margin: 5px 0;"><strong>Class:</strong> ${classroom.name}</p>
-          <p style="margin: 5px 0;"><strong>Due Date:</strong> ${assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'N/A'}</p>
+          <p style="margin: 5px 0;"><strong>Due Date:</strong> ${assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() + ' (GMT)' : 'N/A'}</p>
         </div>
         <p>Don't forget to submit your work before the deadline!</p>
         <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/classrooms/${classroom._id}" 
@@ -222,7 +222,7 @@ router.post('/payment-notification', internalAuth, async (req, res) => {
         <p>Your payment for <strong>${type}</strong> has been processed.</p>
         <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <p style="margin: 5px 0;"><strong>Amount:</strong> ₦${amount}</p>
-          <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+          <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date().toLocaleDateString()} (GMT)</p>
           <p style="margin: 5px 0;"><strong>Status:</strong> <span style="font-weight: bold; color: ${status === 'success' ? '#10b981' : '#ef4444'};">${status.toUpperCase()}</span></p>
         </div>
         <p>If you have any questions, please contact our support team.</p>

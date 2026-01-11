@@ -873,7 +873,7 @@ const ClassroomDetail = () => {
                       const localEnd = convertUTCToLocal(session.dayOfWeek, session.endTime);
                       return (
                         <span key={index} className="bg-gray-100 px-2 py-0.5 rounded text-xs">
-                          {local.dayOfWeek ? local.dayOfWeek.substring(0, 3) : 'N/A'} {local.time}-{localEnd.time}
+                          {local.dayOfWeek ? local.dayOfWeek.substring(0, 3) : 'N/A'} {local.hhmm}-{localEnd.hhmm} ({local.timezone})
                         </span>
                       );
                     })}

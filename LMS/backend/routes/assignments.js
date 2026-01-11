@@ -311,7 +311,7 @@ router.post('/', auth, authorize('root_admin', 'school_admin', 'teacher', 'perso
               <p>A new assignment has been posted in <strong>${classroom.name}</strong>. Please check the details below:</p>
               <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0;">
                 <p style="margin: 5px 0;"><strong>Title:</strong> ${assignment.title}</p>
-                <p style="margin: 5px 0;"><strong>Due Date:</strong> ${new Date(assignment.dueDate).toLocaleDateString()}</p>
+                <p style="margin: 5px 0;"><strong>Due Date:</strong> ${new Date(assignment.dueDate).toLocaleDateString()} (GMT)</p>
                 <p style="margin: 5px 0;"><strong>Type:</strong> ${assignment.assignmentType.toUpperCase()}</p>
               </div>
               <p>Log in to your dashboard to view the full details and start working on it.</p>

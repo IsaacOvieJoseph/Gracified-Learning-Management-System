@@ -898,7 +898,7 @@ router.post('/:id/call/start', auth, subscriptionCheck, async (req, res) => {
         description += `Topic Description: ${currentTopic.description}\n`;
       }
     }
-    description += `Started At: ${now.toLocaleString()}`;
+    description += `Started At: ${now.toLocaleString()} (GMT)`;
 
     if (!latest) {
       // create a real Google Meet if configured, otherwise fallback to pseudo link
