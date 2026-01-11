@@ -93,20 +93,33 @@ async function notifyRecipients({ payerUser, payment, classroom }) {
       const isSubscription = payment.type === 'subscription';
 
       if (role === 'root_admin') {
-        message = `System Alert: ${isSubscription ? 'New Subscription' : 'Class Enrollment'} of ${payment.amount} ${payment.currency || 'NGN'} from ${payerUser?.name || 'user'}.`;
+        message = `System Alert: ${isSubscription ? 'New Subscription' : payment.type === 'topic_access' ? 'Topic Access Purchase' : 'Class Enrollment'} of ${payment.amount} ${payment.currency || 'NGN'} from ${payerUser?.name || 'user'}.`;
       } else if (role === 'school_admin' || role === 'personal_teacher') {
         if (String(user._id) === String(payerUser?._id)) {
-          // They are the ones who paid (for subscription)
-          message = `Subscription Successful: Your ${payment.type.replace('_', ' ')} is now active. Total Paid: ${payment.amount} ${payment.currency || 'NGN'}.`;
+          // They are the ones who paid (for subscription or potentially admin-student enrollment?)
+          message = `Payment Successful: Your ${payment.type.replace('_', ' ')} is now active. Total Paid: ${payment.amount} ${payment.currency || 'NGN'}.`;
           type = 'subscription_success';
         } else {
           // Someone else paid for their class
-          message = `New Enrollment: ${payerUser?.name || 'A student'} joined ${classroom?.name || 'your class'} (Amount: ${payment.amount} ${payment.currency || 'NGN'}).`;
+          if (payment.type === 'topic_access') {
+            const topicName = payment.metadata?.get?.('allTopics') === 'true' ? 'All Topics' : 'a topic';
+            message = `Topic Purchase: ${payerUser?.name || 'A student'} purchased access to ${topicName} in ${classroom?.name || 'your class'} (Amount: ${payment.amount} ${payment.currency || 'NGN'}).`;
+          } else {
+            message = `New Enrollment: ${payerUser?.name || 'A student'} joined ${classroom?.name || 'your class'} (Amount: ${payment.amount} ${payment.currency || 'NGN'}).`;
+          }
         }
       } else if (role === 'teacher') {
-        message = `Class Enrollment: ${payerUser?.name || 'A student'} joined your class "${classroom?.name || 'Class'}".`;
+        if (payment.type === 'topic_access') {
+          message = `Topic Purchase: ${payerUser?.name || 'A student'} purchased access to a topic in your class "${classroom?.name || 'Class'}".`;
+        } else {
+          message = `Class Enrollment: ${payerUser?.name || 'A student'} joined your class "${classroom?.name || 'Class'}".`;
+        }
       } else if (role === 'student') {
-        message = `Enrollment Successful: You have successfully enrolled in "${classroom?.name || 'the class'}". Total Paid: ₦${payment.amount}.`;
+        if (payment.type === 'topic_access') {
+          message = `Topic Access: You have successfully purchased access to ${payment.metadata?.get?.('allTopics') === 'true' ? 'all topics' : 'the topic'} in "${classroom?.name || 'the class'}". Total Paid: ₦${payment.amount}.`;
+        } else {
+          message = `Enrollment Successful: You have successfully enrolled in "${classroom?.name || 'the class'}". Total Paid: ₦${payment.amount}.`;
+        }
         type = 'payment_success';
       } else {
         // Fallback for any other payer role
@@ -183,7 +196,8 @@ router.post('/paystack/initiate', auth, async (req, res) => {
         userId: req.user._id.toString(),
         type: type || 'class_enrollment',
         classroomId: classroomId || null,
-        topicId: topicId || null,
+        topicId: (Array.isArray(req.body.topicIds) ? 'multi' : (topicId || null)),
+        topicIds: Array.isArray(req.body.topicIds) ? req.body.topicIds.join(',') : '',
         planId: planId || null
       },
       // optional return URL
@@ -238,16 +252,19 @@ router.get('/paystack/verify', auth, async (req, res) => {
       userId: req.user._id,
       type: metadata.type || 'class_enrollment',
       classroomId: metadata.classroomId || null,
-      topicId: metadata.topicId || null,
+      topicId: (metadata.topicId && metadata.topicId !== 'all' && metadata.topicId !== 'multi') ? metadata.topicId : null,
       planId: metadata.planId || null,
       amount: normalizedAmount || 0,
       currency: currency,
       paystackReference: reference,
       status: 'completed'
     });
+    if (metadata.topicIds || metadata.topicId === 'all') {
+      payment.metadata = metadata;
+    }
     await payment.save();
 
-    // handle enrollment if applicable
+    // handle enrollment or topic access if applicable
     if (payment.type === 'class_enrollment' && payment.classroomId) {
       const classroom = await Classroom.findById(payment.classroomId);
       if (classroom && !classroom.students.includes(req.user._id)) {
@@ -292,6 +309,34 @@ router.get('/paystack/verify', auth, async (req, res) => {
         await notifyRecipients({ payerUser, payment, classroom });
       } catch (notifyErr) {
         console.error('Error notifying recipients after Paystack verify:', notifyErr.message);
+      }
+    } else if (payment.type === 'topic_access' && payment.classroomId) {
+      const classroom = await Classroom.findById(payment.classroomId);
+      if (classroom) {
+        let payoutOwnerId = classroom.teacherId;
+        const teacher = await User.findById(classroom.teacherId);
+        if (teacher && teacher.role === 'teacher' && classroom.schoolId && classroom.schoolId.length > 0) {
+          const School = require('../models/School');
+          const school = await School.findById(classroom.schoolId[0]);
+          if (school && school.adminId) payoutOwnerId = school.adminId;
+        }
+        const breakdown = await calculatePayoutBreakdown(payment.amount);
+        payment.payoutOwnerId = payoutOwnerId;
+        payment.payoutStatus = 'pending';
+        payment.taxRate = breakdown.taxRate;
+        payment.vatRate = breakdown.vatRate;
+        payment.serviceFeeRate = breakdown.serviceFeeRate;
+        payment.taxAmount = breakdown.taxAmount;
+        payment.vatAmount = breakdown.vatAmount;
+        payment.serviceFeeAmount = breakdown.serviceFeeAmount;
+        payment.payoutAmount = breakdown.payoutAmount;
+        await payment.save();
+      }
+      try {
+        const payerUser = await User.findById(req.user._id).select('email name _id');
+        await notifyRecipients({ payerUser, payment, classroom });
+      } catch (notifyErr) {
+        console.error('Error notifying recipients after topic access verify:', notifyErr.message);
       }
     } else if (payment.type === 'subscription' && payment.planId) {
       const UserSubscription = require('../models/UserSubscription');
@@ -394,11 +439,14 @@ router.post('/paystack/webhook', express.raw({ type: 'application/json' }), asyn
       userId: metadata.userId || null,
       type: metadata.type || 'class_enrollment',
       classroomId: metadata.classroomId || null,
-      topicId: metadata.topicId || null,
+      topicId: (metadata.topicId && metadata.topicId !== 'all' && metadata.topicId !== 'multi') ? metadata.topicId : null,
       amount: normalizedAmount || 0,
       paystackReference: reference,
       status: 'completed'
     });
+    if (metadata.topicIds || metadata.topicId === 'all') {
+      payment.metadata = metadata;
+    }
 
     await payment.save();
 
@@ -448,6 +496,34 @@ router.post('/paystack/webhook', express.raw({ type: 'application/json' }), asyn
           await notifyRecipients({ payerUser, payment, classroom });
         } catch (notifyErr) {
           console.error('Error notifying recipients from webhook:', notifyErr.message);
+        }
+      } else if (payment.type === 'topic_access' && payment.classroomId && metadata.userId) {
+        const classroom = await Classroom.findById(payment.classroomId);
+        if (classroom) {
+          let payoutOwnerId = classroom.teacherId;
+          const teacher = await User.findById(classroom.teacherId);
+          if (teacher && teacher.role === 'teacher' && classroom.schoolId && classroom.schoolId.length > 0) {
+            const School = require('../models/School');
+            const school = await School.findById(classroom.schoolId[0]);
+            if (school && school.adminId) payoutOwnerId = school.adminId;
+          }
+          const breakdown = await calculatePayoutBreakdown(payment.amount);
+          payment.payoutOwnerId = payoutOwnerId;
+          payment.payoutStatus = 'pending';
+          payment.taxRate = breakdown.taxRate;
+          payment.vatRate = breakdown.vatRate;
+          payment.serviceFeeRate = breakdown.serviceFeeRate;
+          payment.taxAmount = breakdown.taxAmount;
+          payment.vatAmount = breakdown.vatAmount;
+          payment.serviceFeeAmount = breakdown.serviceFeeAmount;
+          payment.payoutAmount = breakdown.payoutAmount;
+          await payment.save();
+        }
+        try {
+          const payerUser = await User.findById(metadata.userId).select('email name _id');
+          await notifyRecipients({ payerUser, payment, classroom });
+        } catch (notifyErr) {
+          console.error('Error notifying recipients from webhook (topic_access):', notifyErr.message);
         }
       } else if (payment.type === 'subscription' && metadata.planId && metadata.userId) {
         const userId = metadata.userId;
@@ -758,13 +834,31 @@ router.get('/topic-status/:classroomId', auth, async (req, res) => {
       classroomId,
       type: 'topic_access',
       status: 'completed',
-    }).select('topicId');
-    const paidTopicIds = new Set(payments.map(p => String(p.topicId)));
+    }).select('topicId paystackReference stripePaymentId metadata');
+
+    // Helper to check if a specific topicId is covered by any payment
+    const isTopicPaid = (id) => {
+      const topicIdStr = String(id);
+      return payments.some(p => {
+        // Case 1: Direct single topic access
+        if (p.topicId && String(p.topicId) === topicIdStr) return true;
+
+        // Case 2: Multi-topic access via metadata list
+        const multiIds = p.metadata?.get?.('topicIds');
+        if (multiIds && multiIds.split(',').includes(topicIdStr)) return true;
+
+        // Case 3: Legacy 'all' access (backward compatibility, though we are moving away from it)
+        if (!p.topicId && p.metadata?.get?.('allTopics') === 'true') return true;
+
+        return false;
+      });
+    };
+
     const paidTopics = [];
     const unpaidTopics = [];
     let totalUnpaidAmount = 0;
     const allTopics = topics.map(topic => {
-      const isPaid = paidTopicIds.has(String(topic._id));
+      const isPaid = isTopicPaid(topic._id);
       const topicObj = {
         _id: topic._id,
         name: topic.name,

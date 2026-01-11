@@ -29,19 +29,94 @@ const TopicDisplay = ({ classroomId }) => {
             setTopicStatus(null);
         }
     };
-    // Payment handlers (stub, to be implemented with payment integration)
+    const loadPaystackScript = () => {
+        return new Promise((resolve, reject) => {
+            if (window.PaystackPop) return resolve();
+            const script = document.createElement('script');
+            script.src = 'https://js.paystack.co/v1/inline.js';
+            script.async = true;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('Failed to load Paystack script'));
+            document.body.appendChild(script);
+        });
+    };
+
+    const handlePaymentSuccess = async (reference) => {
+        try {
+            await api.get(`/payments/paystack/verify?reference=${encodeURIComponent(reference)}`);
+            import('react-hot-toast').then(({ toast }) => toast.success('Payment successful! Access granted.'));
+            fetchTopicStatus();
+        } catch (err) {
+            console.error('Verification failed', err);
+            import('react-hot-toast').then(({ toast }) => toast.error('Payment verification failed. Please contact support.'));
+        } finally {
+            setPaying(false);
+        }
+    };
+
+    // Payment handlers
     const handlePayForTopic = async (topicId) => {
         setPaying(true);
-        // TODO: Integrate with payment API for single topic
-        alert('Pay for topic: ' + topicId);
-        setPaying(false);
+        try {
+            const topic = topicStatus.allTopics.find(t => t._id === topicId);
+            const amount = topic.price;
+
+            // 1. Initialize on server to get reference
+            const resp = await api.post('/payments/paystack/initiate', {
+                amount,
+                classroomId,
+                topicId,
+                type: 'topic_access'
+            });
+
+            if (resp.data.reference) {
+                // 2. Load and open Paystack Inline
+                await loadPaystackScript();
+                const handler = window.PaystackPop.setup({
+                    key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+                    email: user.email,
+                    amount: Math.round(amount * 100),
+                    ref: resp.data.reference,
+                    callback: (response) => handlePaymentSuccess(response.reference),
+                    onClose: () => setPaying(false)
+                });
+                handler.openIframe();
+            }
+        } catch (err) {
+            console.error('Payment initialization failed', err);
+            import('react-hot-toast').then(({ toast }) => toast.error('Could not start payment.'));
+            setPaying(false);
+        }
     };
 
     const handlePayForAllTopics = async () => {
         setPaying(true);
-        // TODO: Integrate with payment API for all unpaid topics
-        alert('Pay for all unpaid topics');
-        setPaying(false);
+        try {
+            const unpaidTopicIds = topicStatus.unpaidTopics.map(t => t._id);
+            const resp = await api.post('/payments/paystack/initiate', {
+                amount: topicStatus.totalUnpaidAmount,
+                classroomId,
+                topicIds: unpaidTopicIds,
+                type: 'topic_access'
+            });
+
+            if (resp.data.reference) {
+                await loadPaystackScript();
+                const handler = window.PaystackPop.setup({
+                    key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+                    email: user.email,
+                    amount: Math.round(topicStatus.totalUnpaidAmount * 100),
+                    ref: resp.data.reference,
+                    callback: (response) => handlePaymentSuccess(response.reference),
+                    onClose: () => setPaying(false)
+                });
+                handler.openIframe();
+            }
+        } catch (err) {
+            console.error('Payment initialization failed', err);
+            import('react-hot-toast').then(({ toast }) => toast.error('Could not start payment.'));
+            setPaying(false);
+        }
     };
 
     const fetchCurrentTopic = async () => {

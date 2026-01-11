@@ -148,24 +148,30 @@ const ClassroomDetail = () => {
     // Only apply to students
     if (user?.role !== 'student') return true;
 
-    // If no classroom or topics loaded yet, conservatively allow (or maybe block? defaulting to allow to avoid flickers, but let's see)
-    // Actually best to ensure data is loaded.
+    // Only apply if pricing type is per_topic
+    if (classroom?.pricing?.type !== 'per_topic') return true;
+
     if (!classroom || !classroom.topics) return true;
 
-    // Determine effective topic ID
-    const effectiveTopicId = targetTopicId || classroom.currentTopicId;
-    if (!effectiveTopicId) return true; // No active topic, so no restriction applies
+    // Determine effective topic ID (prefer explicit target, then current topic field, then status fallback)
+    let topicToProtect = targetTopicId || classroom.currentTopicId;
+    if (!topicToProtect) {
+      const activeTopic = classroom.topics.find(t => t.status === 'active');
+      if (activeTopic) topicToProtect = activeTopic._id;
+    }
 
-    const topicIdStr = typeof effectiveTopicId === 'object' ? effectiveTopicId._id : effectiveTopicId;
+    if (!topicToProtect) return true;
 
-    // Find the topic object
-    const topic = classroom.topics.find(t => t._id === topicIdStr.toString());
-    if (!topic) return true; // Topic not found in list, maybe deleted?
+    const topicIdStr = (typeof topicToProtect === 'object' ? topicToProtect._id : topicToProtect).toString();
 
-    // Check if topic is paid
+    // Find the topic object in classroom.topics to get its latest price/isPaid status
+    const topic = classroom.topics.find(t => t._id === topicIdStr);
+    if (!topic) return true;
+
+    // Check if topic is paid (teacher might have made it free)
     if (topic.isPaid && topic.price > 0) {
-      // Check if user paid
-      if (!paidTopicIds.has(topic._id)) {
+      // Check if user paid (we use the set of paid IDs)
+      if (!paidTopicIds.has(topicIdStr)) {
         setBlockedTopic(topic);
         setShowPaymentModal(true);
         return false;
@@ -1672,6 +1678,7 @@ const ClassroomDetail = () => {
         onClose={() => setShowPaymentModal(false)}
         topic={blockedTopic}
         classroomId={id}
+        onSuccess={fetchTopicStatus}
       />
 
 

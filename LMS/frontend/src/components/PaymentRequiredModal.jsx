@@ -1,16 +1,70 @@
-import React from 'react';
-import { X, Lock, CreditCard } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Lock, CreditCard, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
+import { toast } from 'react-hot-toast';
 
-const PaymentRequiredModal = ({ show, onClose, topic, classroomId }) => {
+const PaymentRequiredModal = ({ show, onClose, topic, classroomId, onSuccess }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [isPaying, setIsPaying] = useState(false);
 
   if (!show || !topic) return null;
 
-  const handlePay = () => {
-    // Navigate to payment page with params
-    navigate(`/payments?classroomId=${classroomId}&topicId=${topic._id}&amount=${topic.price}&type=topic_access`);
-    onClose();
+  const loadPaystackScript = () => {
+    return new Promise((resolve, reject) => {
+      if (window.PaystackPop) return resolve();
+      const script = document.createElement('script');
+      script.src = 'https://js.paystack.co/v1/inline.js';
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Failed to load Paystack script'));
+      document.body.appendChild(script);
+    });
+  };
+
+  const handlePay = async () => {
+    setIsPaying(true);
+    try {
+      const amount = topic.price;
+      // 1. Initialize
+      const resp = await api.post('/payments/paystack/initiate', {
+        amount,
+        classroomId,
+        topicId: topic._id,
+        type: 'topic_access'
+      });
+
+      if (resp.data.reference) {
+        // 2. Open Modal
+        await loadPaystackScript();
+        const handler = window.PaystackPop.setup({
+          key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+          email: user?.email,
+          amount: Math.round(amount * 100),
+          ref: resp.data.reference,
+          callback: async (response) => {
+            try {
+              await api.get(`/payments/paystack/verify?reference=${encodeURIComponent(response.reference)}`);
+              toast.success('Payment successful! Access granted.');
+              if (onSuccess) onSuccess();
+              onClose();
+            } catch (err) {
+              toast.error('Payment verification failed.');
+            } finally {
+              setIsPaying(false);
+            }
+          },
+          onClose: () => setIsPaying(false)
+        });
+        handler.openIframe();
+      }
+    } catch (err) {
+      console.error('Payment failed', err);
+      toast.error(err.response?.data?.message || 'Could not start payment');
+      setIsPaying(false);
+    }
   };
 
   return (
@@ -22,9 +76,10 @@ const PaymentRequiredModal = ({ show, onClose, topic, classroomId }) => {
             <Lock className="w-5 h-5 text-yellow-500" />
             Access Restricted
           </h3>
-          <button 
+          <button
             onClick={onClose}
             className="text-gray-400 hover:text-white transition"
+            disabled={isPaying}
           >
             <X className="w-5 h-5" />
           </button>
@@ -35,12 +90,12 @@ const PaymentRequiredModal = ({ show, onClose, topic, classroomId }) => {
           <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Lock className="w-8 h-8 text-yellow-600" />
           </div>
-          
+
           <h4 className="text-xl font-bold text-gray-800 mb-2">Payment Required</h4>
           <p className="text-gray-600 mb-6">
             The topic <span className="font-semibold text-indigo-600">"{topic.name}"</span> requires payment to access its contents, including assignments, meetings, and the whiteboard.
           </p>
-          
+
           <div className="bg-gray-50 rounded-lg p-4 mb-6 border border-gray-200">
             <div className="text-sm text-gray-500 mb-1">Access Fee</div>
             <div className="text-3xl font-bold text-green-600">₦{topic.price?.toLocaleString()}</div>
@@ -49,16 +104,27 @@ const PaymentRequiredModal = ({ show, onClose, topic, classroomId }) => {
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
+              disabled={isPaying}
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handlePay}
-              className="flex-1 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition font-medium flex items-center justify-center gap-2 shadow-lg"
+              disabled={isPaying}
+              className="flex-1 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition font-medium flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
             >
-              <CreditCard className="w-4 h-4" />
-              Pay Now
+              {isPaying ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="w-4 h-4" />
+                  Pay Now
+                </>
+              )}
             </button>
           </div>
         </div>

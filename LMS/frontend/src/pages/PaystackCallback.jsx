@@ -27,8 +27,10 @@ export default function PaystackCallback() {
           setStatus('success');
           setMessage(res.data.message || 'Payment verified.');
           // optionally redirect after short delay
+          const classroomId = query.get('classroomId');
           setTimeout(() => {
-            navigate('/payments');
+            if (classroomId) navigate(`/classrooms/${classroomId}`);
+            else navigate('/payments');
           }, 2500);
         } else {
           setStatus('error');

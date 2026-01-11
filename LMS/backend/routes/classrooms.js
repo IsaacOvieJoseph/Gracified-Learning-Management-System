@@ -130,11 +130,11 @@ router.get('/:id', auth, subscriptionCheck, async (req, res) => {
         }
       })
       .populate('students', 'name email')
-      .populate('topics', 'name description materials status order')
+      .populate('topics', 'name description materials status order isPaid price')
       .populate({
         path: 'assignments',
         populate: [
-          { path: 'topicId', select: 'name' }, // Populate topic details
+          { path: 'topicId', select: 'name isPaid price' }, // Populate topic details including payment info
           {
             path: 'submissions.studentId', // Populate student details within submissions
             select: 'name email'
