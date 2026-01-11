@@ -83,7 +83,7 @@ const getCurrentTopic = async (classroomId) => {
 /**
  * Mark a topic as completed and activate the next one
  */
-const markTopicComplete = async (topicId, userId) => {
+const markTopicComplete = async (topicId, userId, activateNext = true) => {
     const topic = await Topic.findById(topicId);
     if (!topic) {
         throw new Error('Topic not found');
@@ -97,19 +97,21 @@ const markTopicComplete = async (topicId, userId) => {
     topic.completedBy = userId;
     await topic.save();
 
-    // Get and activate next topic
+    // Get next topic
     const nextTopic = await getNextTopic(topic, topic.classroomId);
 
     if (nextTopic) {
-        nextTopic.status = 'active';
-        nextTopic.startedAt = now;
-        nextTopic.expectedEndDate = calculateExpectedEndDate(now, nextTopic.duration);
-        await nextTopic.save();
+        if (activateNext) {
+            nextTopic.status = 'active';
+            nextTopic.startedAt = now;
+            nextTopic.expectedEndDate = calculateExpectedEndDate(now, nextTopic.duration);
+            await nextTopic.save();
 
-        // Update classroom's current topic
-        await Classroom.findByIdAndUpdate(topic.classroomId, {
-            currentTopicId: nextTopic._id
-        });
+            // Update classroom's current topic
+            await Classroom.findByIdAndUpdate(topic.classroomId, {
+                currentTopicId: nextTopic._id
+            });
+        }
 
         return { completedTopic: topic, nextTopic };
     }

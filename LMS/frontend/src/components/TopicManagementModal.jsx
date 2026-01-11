@@ -23,6 +23,11 @@ const TopicManagementModal = ({ show, onClose, classroomId, onSuccess }) => {
     const [showPaidTopics, setShowPaidTopics] = useState(false);
     const [classroom, setClassroom] = useState(null);
 
+    // Progression states
+    const [showProgressionModal, setShowProgressionModal] = useState(false);
+    const [topicToComplete, setTopicToComplete] = useState(null);
+    const [nextTopic, setNextTopic] = useState(null);
+
     useEffect(() => {
         if (show && classroomId) {
             fetchTopics();
@@ -116,12 +121,28 @@ const TopicManagementModal = ({ show, onClose, classroomId, onSuccess }) => {
     };
 
     const handleComplete = async (topicId) => {
+        // Find next topic in order
+        const currentIndex = topics.findIndex(t => t._id === topicId);
+        const next = topics.find((t, i) => i > currentIndex && t.status === 'pending');
+
+        if (next) {
+            setTopicToComplete(topicId);
+            setNextTopic(next);
+            setShowProgressionModal(true);
+        } else {
+            // No next topic, just complete
+            completeTopic(topicId, false);
+        }
+    };
+
+    const completeTopic = async (topicId, activateNext) => {
         try {
-            const response = await api.post(`/topics/${topicId}/complete`);
-            toast.success(`Topic completed! ${response.data.nextTopic ? `Next: ${response.data.nextTopic.name}` : 'No more topics.'}`);
+            const response = await api.post(`/topics/${topicId}/complete`, { activateNext });
+            toast.success(response.data.message);
             fetchTopics();
             fetchCurrentTopic();
             if (onSuccess) onSuccess();
+            setShowProgressionModal(false);
         } catch (error) {
             toast.error(error.response?.data?.message || 'Error completing topic');
         }
@@ -542,6 +563,45 @@ const TopicManagementModal = ({ show, onClose, classroomId, onSuccess }) => {
                     </button>
                 </div>
             </div>
+
+            {/* Progression Confirmation Modal */}
+            {showProgressionModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-[60] animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 border border-indigo-100">
+                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <CheckCircle className="w-10 h-10 text-green-600" />
+                        </div>
+
+                        <h3 className="text-2xl font-bold text-gray-900 text-center mb-2">Topic Completed!</h3>
+                        <p className="text-gray-600 text-center mb-8">
+                            Should the next topic <span className="font-bold text-indigo-600">"{nextTopic?.name}"</span> become active immediately?
+                        </p>
+
+                        <div className="flex flex-col space-y-3">
+                            <button
+                                onClick={() => completeTopic(topicToComplete, true)}
+                                className="w-full py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center space-x-2"
+                            >
+                                <Play className="w-5 h-5" />
+                                <span>Yes, Activate Next Topic</span>
+                            </button>
+                            <button
+                                onClick={() => completeTopic(topicToComplete, false)}
+                                className="w-full py-3 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all flex items-center justify-center space-x-2"
+                            >
+                                <Clock className="w-5 h-5 text-gray-400" />
+                                <span>No, Keep it Pending</span>
+                            </button>
+                            <button
+                                onClick={() => setShowProgressionModal(false)}
+                                className="w-full py-2 text-gray-500 text-sm hover:text-gray-700 transition font-medium"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

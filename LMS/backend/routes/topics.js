@@ -326,6 +326,7 @@ router.get('/classroom/:classroomId/current', auth, subscriptionCheck, async (re
 // Mark topic as complete (authorized roles only)
 router.post('/:id/complete', auth, authorize('root_admin', 'school_admin', 'teacher', 'personal_teacher'), subscriptionCheck, async (req, res) => {
   try {
+    const { activateNext = true } = req.body;
     const topic = await Topic.findById(req.params.id).populate('classroomId');
 
     if (!topic) {
@@ -342,9 +343,9 @@ router.post('/:id/complete', auth, authorize('root_admin', 'school_admin', 'teac
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const result = await markTopicComplete(req.params.id, req.user._id);
+    const result = await markTopicComplete(req.params.id, req.user._id, activateNext);
     res.json({
-      message: 'Topic marked as complete',
+      message: activateNext && result.nextTopic ? `Topic completed! Next: ${result.nextTopic.name} is now active.` : 'Topic marked as complete',
       completedTopic: result.completedTopic,
       nextTopic: result.nextTopic
     });
