@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import CreateAssignmentModal from '../components/CreateAssignmentModal';
 import GradeAssignmentModal from '../components/GradeAssignmentModal'; // Import the new modal component
 import SubmitAssignmentModal from '../components/SubmitAssignmentModal';
+import PaymentRequiredModal from '../components/PaymentRequiredModal';
 import { Edit, Trash2, X, Loader2 } from 'lucide-react';
 import { formatDisplayDate } from '../utils/timezone';
 
@@ -30,6 +31,12 @@ const Assignments = () => {
   const [assignmentToDelete, setAssignmentToDelete] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Topic Payment Access states
+  const [classroomsTopicStatus, setClassroomsTopicStatus] = useState({}); // { classroomId: topicStatus }
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [blockedTopic, setBlockedTopic] = useState(null);
+  const [blockedClassroomId, setBlockedClassroomId] = useState(null);
   const [selectedSchools, setSelectedSchools] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('selectedSchools')) || [];
@@ -85,6 +92,20 @@ const Assignments = () => {
         );
         const assignmentResponses = await Promise.all(assignmentPromises);
         allAssignments = assignmentResponses.flatMap(res => res.data.assignments);
+
+        // Fetch topic status for each enrolled classroom to enforce payment checks
+        const statusPromises = enrolledClassrooms.map(c =>
+          api.get(`/payments/topic-status/${c._id}`).catch(() => null)
+        );
+        const statusResponses = await Promise.all(statusPromises);
+        const statusMap = {};
+        enrolledClassrooms.forEach((c, index) => {
+          if (statusResponses[index]) {
+            statusMap[c._id] = statusResponses[index].data;
+          }
+        });
+        setClassroomsTopicStatus(statusMap);
+
       } else if (['root_admin', 'school_admin', 'teacher', 'personal_teacher'].includes(user?.role)) {
         const classroomsRes = await api.get('/classrooms');
         let relevantClassrooms = classroomsRes.data.classrooms;
@@ -197,6 +218,29 @@ const Assignments = () => {
     // as the API call is handled within GradeAssignmentModal
     setShowGradeModal(false);
     fetchAssignments();
+  };
+
+  const checkTopicAccess = (assignment) => {
+    if (user?.role !== 'student') return true;
+
+    const classroom = assignment.classroomId;
+    const topic = assignment.topicId;
+
+    if (!classroom || !topic) return true;
+    if (classroom.pricing?.type !== 'per_topic') return true;
+
+    const topicStatus = classroomsTopicStatus[classroom._id];
+    if (!topicStatus) return true; // Fallback to allow if not loaded or error
+
+    const isPaid = topicStatus.paidTopics.some(t => String(t._id) === String(topic._id));
+
+    if (!isPaid) {
+      setBlockedTopic(topic);
+      setBlockedClassroomId(classroom._id);
+      setShowPaymentModal(true);
+      return false;
+    }
+    return true;
   };
 
   const canCreateAssignment = ['root_admin', 'school_admin', 'teacher', 'personal_teacher'].includes(user?.role);
@@ -503,8 +547,9 @@ const Assignments = () => {
                           return (
                             <button
                               onClick={(e) => {
-                                if (isPastDue) return;
                                 e.stopPropagation();
+                                if (isPastDue) return;
+                                if (!checkTopicAccess(assignment)) return;
                                 setAssignmentToSubmit(assignment);
                                 setShowSubmitAssignmentModal(true);
                               }}
@@ -687,6 +732,19 @@ const Assignments = () => {
           onClose={() => setShowSubmitAssignmentModal(false)}
           onSubmit={handleSubmitAssignment}
           isSubmitting={isSubmittingAssignment}
+        />
+      )}
+
+      {/* Payment Required Modal */}
+      {showPaymentModal && (
+        <PaymentRequiredModal
+          show={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          topic={blockedTopic}
+          classroomId={blockedClassroomId}
+          onSuccess={() => {
+            fetchAssignments(); // Refresh both assignments and topic statuses
+          }}
         />
       )}
     </Layout>

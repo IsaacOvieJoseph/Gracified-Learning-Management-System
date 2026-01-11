@@ -45,7 +45,7 @@ router.get('/', auth, async (req, res) => {
 
     const assignments = await Assignment.find(query)
       .populate('classroomId', 'name')
-      .populate('topicId', 'name')
+      .populate('topicId', 'name isPaid price')
       .sort({ createdAt: -1 });
 
     res.json({ assignments });
@@ -106,7 +106,7 @@ router.get('/classroom/:classroomId', auth, subscriptionCheck, async (req, res) 
     }
 
     let assignments = await Assignment.find({ classroomId: req.params.classroomId })
-      .populate('topicId', 'name')
+      .populate('topicId', 'name isPaid price')
       .populate({
         path: 'classroomId',
         populate: [
@@ -161,7 +161,7 @@ router.get('/:id', auth, subscriptionCheck, async (req, res) => {
           }
         ]
       })
-      .populate('topicId', 'name')
+      .populate('topicId', 'name isPaid price')
       .populate('submissions.studentId', 'name email');
 
     if (!assignment) {
