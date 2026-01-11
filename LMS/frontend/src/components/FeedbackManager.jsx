@@ -17,7 +17,7 @@ const FeedbackManager = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
-        if (user && user.role === 'student') {
+        if (user) {
             fetchPendingFeedback();
         }
     }, [user]);
@@ -81,20 +81,41 @@ const FeedbackManager = () => {
 
     if (!showModal || !currentRequest) return null;
 
+    const isPlatform = currentRequest.type === 'platform';
+    const headerColorClass = isPlatform ? 'bg-gradient-to-r from-purple-600 to-indigo-600' : 'bg-indigo-600';
+
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-[100]">
-            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="bg-indigo-600 p-6 text-center">
-                    <MessageSquare className="w-12 h-12 text-white mx-auto mb-3" />
-                    <h3 className="text-2xl font-bold text-white">Classroom Ended</h3>
-                    <p className="text-indigo-100 mt-2">
-                        The classroom <span className="font-semibold text-white">{currentRequest.classroomName || currentRequest.classroomId?.name}</span> has ended.
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm transition-opacity duration-300">
+            <div className={`bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden transform transition-all duration-300 scale-100 animate-in fade-in zoom-in-95`}>
+                <div className={`${headerColorClass} p-6 text-center relative overflow-hidden`}>
+                    {/* Decorative circles */}
+                    <div className="absolute top-0 left-0 w-20 h-20 bg-white opacity-10 rounded-full -translate-x-10 -translate-y-10"></div>
+                    <div className="absolute bottom-0 right-0 w-16 h-16 bg-white opacity-10 rounded-full translate-x-5 translate-y-5"></div>
+
+                    {isPlatform ? (
+                        <div className="flex justify-center mb-3">
+                            <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm">
+                                <img src="/logo.jpg" alt="Logo" className="w-10 h-10 object-contain rounded-full" onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<svg class="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>' }} />
+                            </div>
+                        </div>
+                    ) : (
+                        <MessageSquare className="w-12 h-12 text-white mx-auto mb-3" />
+                    )}
+
+                    <h3 className="text-2xl font-bold text-white">
+                        {isPlatform ? 'We Value Your Feedback' : 'Classroom Ended'}
+                    </h3>
+                    <p className="text-indigo-100 mt-2 text-sm px-4">
+                        {isPlatform
+                            ? (currentRequest.title || 'How is your experience with our platform?')
+                            : <span>The classroom <span className="font-semibold text-white">{currentRequest.classroomName || currentRequest.classroomId?.name}</span> has ended.</span>
+                        }
                     </p>
                 </div>
 
                 <div className="p-6">
                     <p className="text-gray-600 text-center mb-6">
-                        We value your opinion! Please take a moment to rate your learning experience.
+                        {isPlatform ? 'Please rate your overall experience so far.' : 'We value your opinion! Please take a moment to rate your learning experience.'}
                     </p>
 
                     <form onSubmit={handleSubmit}>
