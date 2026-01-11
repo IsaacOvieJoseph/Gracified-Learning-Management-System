@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Video, Edit, Plus, Calendar, Users, User, Book, DollarSign, X, UserPlus, FileText, CheckCircle, Send, ChevronDown, ChevronUp, GripVertical, Trash2, Loader2, Clock, ExternalLink, Globe, Share2, Facebook, Twitter, Linkedin, Copy, Play, Circle, FastForward, Eye, EyeOff, Megaphone, Flag } from 'lucide-react';
+import { Video, Edit, Plus, Calendar, Users, User, Book, DollarSign, X, UserPlus, FileText, CheckCircle, Send, ChevronDown, ChevronUp, GripVertical, Trash2, Loader2, Clock, ExternalLink, Globe, Share2, Facebook, Twitter, Linkedin, Copy, Play, Circle, FastForward, Eye, EyeOff, Megaphone, Flag, CreditCard } from 'lucide-react';
 import { convertLocalToUTC, convertUTCToLocal, formatDisplayDate } from '../utils/timezone';
 import Layout from '../components/Layout';
 import api from '../utils/api';
@@ -322,11 +322,92 @@ const ClassroomDetail = () => {
     }
   };
 
+  // Payment Logic for Enrollment
+  const [showEnrollmentPaymentModal, setShowEnrollmentPaymentModal] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+  const loadPaystackScript = () => {
+    return new Promise((resolve, reject) => {
+      if (window.PaystackPop) return resolve();
+      const script = document.createElement('script');
+      script.src = 'https://js.paystack.co/v1/inline.js';
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Failed to load Paystack script'));
+      document.body.appendChild(script);
+    });
+  };
+
+  const handleEnrollmentPayment = async () => {
+    setIsProcessingPayment(true);
+    try {
+      const amount = classroom.pricing?.amount || 0;
+      // 1. Initialize logic
+      const resp = await api.post('/payments/paystack/initiate', {
+        amount,
+        classroomId: id,
+        type: 'class_enrollment',
+        returnUrl: window.location.href // Fallback
+      });
+
+      if (resp.data.reference) {
+        await loadPaystackScript();
+        const pubKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+        // Paystack expects amount in kobo if currency is NGN
+        const payAmount = (import.meta.env.VITE_PAYSTACK_CURRENCY || 'NGN').toLowerCase() === 'ngn'
+          ? Math.round(amount * 100)
+          : Math.round(amount * 100);
+
+        if (!user || !user.email) {
+          throw new Error('User email not available.');
+        }
+
+        const handleCallback = (response) => {
+          (async () => {
+            try {
+              await api.get(`/payments/paystack/verify?reference=${encodeURIComponent(response.reference)}`);
+              toast.success('Payment successful! You are now enrolled.');
+              setShowEnrollmentPaymentModal(false);
+              fetchClassroom(); // Refresh to update enrollment status
+            } catch (err) {
+              toast.error(err.response?.data?.message || 'Payment verification failed');
+            } finally {
+              setIsProcessingPayment(false);
+            }
+          })();
+        };
+
+        const handler = window.PaystackPop.setup({
+          key: pubKey,
+          email: user.email,
+          amount: payAmount,
+          ref: resp.data.reference,
+          callback: handleCallback,
+          onClose: () => setIsProcessingPayment(false)
+        });
+
+        if (handler && typeof handler.openIframe === 'function') {
+          handler.openIframe();
+        } else if (handler && typeof handler.open === 'function') {
+          handler.open();
+        } else {
+          throw new Error('Paystack handler not available');
+        }
+      } else {
+        throw new Error('Failed to initiate payment');
+      }
+    } catch (error) {
+      console.error('Enrollment payment error:', error);
+      toast.error(error.response?.data?.message || 'Error processing payment');
+      setIsProcessingPayment(false);
+    }
+  };
+
   const handleEnroll = async () => {
     try {
       if (classroom.isPaid && classroom.pricing?.amount > 0) {
-        // Redirect to payment
-        navigate(`/payments?classroomId=${id}`);
+        // Show local payment modal instead of navigating
+        setShowEnrollmentPaymentModal(true);
       } else {
         await api.post(`/classrooms/${id}/enroll`);
         toast.success('Enrolled successfully!');
@@ -1805,6 +1886,62 @@ const ClassroomDetail = () => {
         classroomId={id}
         onSuccess={fetchTopicStatus}
       />
+
+      {/* Enrollment Payment Modal */}
+      {showEnrollmentPaymentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-in-up">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-4 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-yellow-300" />
+                Enrollment Payment
+              </h3>
+              <button
+                onClick={() => setShowEnrollmentPaymentModal(false)}
+                className="text-white hover:text-gray-200 transition"
+                disabled={isProcessingPayment}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 text-center">
+              <h4 className="text-lg font-semibold text-gray-800 mb-2">Join {classroom.name}</h4>
+              <p className="text-gray-600 mb-6">Complete your payment to gain full access to this classroom.</p>
+
+              <div className="bg-gray-50 rounded-lg p-4 mb-6 border border-gray-200">
+                <div className="text-sm text-gray-500 mb-1">Total Amount</div>
+                <div className="text-3xl font-bold text-green-600">
+                  {formatAmount(classroom.pricing?.amount || 0, classroom.pricing?.currency || 'NGN')}
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowEnrollmentPaymentModal(false)}
+                  disabled={isProcessingPayment}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEnrollmentPayment}
+                  disabled={isProcessingPayment}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-medium shadow-md"
+                >
+                  {isProcessingPayment ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    'Pay Now'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
 
       {/* Delete Topic Confirmation Modal */}
