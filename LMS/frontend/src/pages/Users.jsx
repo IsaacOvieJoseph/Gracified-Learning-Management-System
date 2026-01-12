@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import Select from 'react-select';
-import { Plus, Edit, Trash2, Search, Loader2, Upload, Download } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Loader2, Upload, Download, X, CheckCircle, XCircle } from 'lucide-react';
 import Layout from '../components/Layout';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -40,6 +40,9 @@ const Users = () => {
     password: '',
     role: 'student'
   });
+  const [uploadStep, setUploadStep] = useState(1); // 1: Upload, 2: Validate, 3: Results
+  const [parsedData, setParsedData] = useState([]);
+  const [validationErrors, setValidationErrors] = useState([]);
 
   useEffect(() => {
     fetchUsers();
@@ -168,11 +171,129 @@ const Users = () => {
 
     setIsUploading(true);
     setUploadResults(null);
+    setParsedData([]);
+    setValidationErrors([]);
 
     try {
+      // Parse CSV file
+      const text = await csvFile.text();
+      const lines = text.split('\n');
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+
+      const data = [];
+      const errors = [];
+      const emailSet = new Set();
+
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+
+        const values = lines[i].split(',').map(v => v.trim());
+        const row = {};
+
+        headers.forEach((header, index) => {
+          row[header] = values[index] || '';
+        });
+
+        // Basic validation
+        const rowErrors = [];
+
+        if (!row.name) {
+          rowErrors.push('Name is required');
+        }
+
+        if (!row.email) {
+          rowErrors.push('Email is required');
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
+          rowErrors.push('Invalid email format');
+        } else if (emailSet.has(row.email.toLowerCase())) {
+          rowErrors.push('Duplicate email in CSV');
+        } else {
+          emailSet.add(row.email.toLowerCase());
+        }
+
+        // Check if user already exists
+        try {
+          const existingUsers = users.filter(u => u.email.toLowerCase() === row.email.toLowerCase());
+          if (existingUsers.length > 0) {
+            rowErrors.push('User already exists in system');
+          }
+        } catch (err) {
+          // Continue if check fails
+        }
+
+        // Validate role
+        const validRoles = ['student', 'teacher', 'personal_teacher'];
+        if (user?.role === 'root_admin') {
+          validRoles.push('school_admin');
+        }
+
+        if (row.role && !validRoles.includes(row.role)) {
+          rowErrors.push(`Invalid role. Must be one of: ${validRoles.join(', ')}`);
+        }
+
+        // Validate school if provided
+        if (row.school) {
+          const schoolExists = schools.find(s =>
+            s.name.toLowerCase() === row.school.toLowerCase() ||
+            s._id === row.school
+          );
+          if (!schoolExists) {
+            rowErrors.push(`School "${row.school}" not found`);
+          } else {
+            row.schoolId = schoolExists._id;
+            row.schoolName = schoolExists.name;
+          }
+        }
+
+        data.push({
+          ...row,
+          rowNumber: i + 1,
+          errors: rowErrors,
+          valid: rowErrors.length === 0
+        });
+
+        if (rowErrors.length > 0) {
+          errors.push({
+            row: i + 1,
+            email: row.email || 'N/A',
+            errors: rowErrors
+          });
+        }
+      }
+
+      setParsedData(data);
+      setValidationErrors(errors);
+      setUploadStep(2); // Move to validation step
+
+    } catch (error) {
+      toast.error('Error parsing CSV: ' + error.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const confirmBulkUpload = async () => {
+    setIsUploading(true);
+    setUploadResults(null);
+
+    try {
+      const validUsers = parsedData.filter(u => u.valid);
+
+      if (validUsers.length === 0) {
+        toast.error('No valid users to upload');
+        setIsUploading(false);
+        return;
+      }
+
       const formDataToSend = new FormData();
-      formDataToSend.append('csvFile', csvFile);
-      formDataToSend.append('role', formData.role || 'student');
+
+      // Create a new CSV with only valid users
+      const csvContent = 'name,email,role,school\n' +
+        validUsers.map(u => `${u.name},${u.email},${u.role || 'student'},${u.school || ''}`).join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      formDataToSend.append('csvFile', blob, 'validated_users.csv');
+      formDataToSend.append('role', 'student'); // Default, will be overridden by CSV
 
       if (user?.role === 'school_admin' && selectedSchools.length > 0) {
         formDataToSend.append('schoolId', JSON.stringify(selectedSchools));
@@ -184,6 +305,7 @@ const Users = () => {
       });
 
       setUploadResults(response.data);
+      setUploadStep(3); // Move to results step
       toast.success(`Successfully processed ${response.data.successful} users`);
 
       if (response.data.failed > 0) {
@@ -199,7 +321,10 @@ const Users = () => {
   };
 
   const downloadSampleCSV = () => {
-    const csvContent = 'name,email\nJohn Doe,john@example.com\nJane Smith,jane@example.com';
+    const csvContent = `name,email,role,school
+John Doe,john@example.com,student,${schools[0]?.name || 'School Name'}
+Jane Smith,jane@example.com,teacher,${schools[0]?.name || 'School Name'}
+Bob Johnson,bob@example.com,student,`;
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -486,100 +611,203 @@ const Users = () => {
       {/* Bulk Upload Modal */}
       {showBulkUploadModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full p-6 overflow-y-auto max-h-[90vh]">
-            <h3 className="text-xl font-bold mb-4">Bulk Upload Users via CSV</h3>
-
-            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800 mb-2">
-                <strong>Instructions:</strong>
-              </p>
-              <ul className="text-sm text-blue-700 list-disc list-inside space-y-1">
-                <li>Upload a CSV file with columns: <code className="bg-blue-100 px-1 rounded">name</code>, <code className="bg-blue-100 px-1 rounded">email</code></li>
-                <li>Each user will receive an invite email with a unique link to set their password</li>
-                <li>The invite link expires in 7 days</li>
-                <li>Select the role for all users in this upload</li>
-              </ul>
-              <button
-                onClick={downloadSampleCSV}
-                className="mt-3 flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Sample CSV</span>
-              </button>
-            </div>
-
-            <form onSubmit={handleBulkUpload} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">CSV File</label>
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={(e) => setCsvFile(e.target.files[0])}
-                  className="w-full px-4 py-2 border rounded-lg"
-                  required
-                />
-                {csvFile && (
-                  <p className="text-sm text-gray-600 mt-1">Selected: {csvFile.name}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Role for All Users</label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg"
-                  required
-                >
-                  <option value="student">Student</option>
-                  <option value="teacher">Teacher</option>
-                  {user?.role === 'root_admin' && (
-                    <>
-                      <option value="school_admin">School Admin</option>
-                      <option value="personal_teacher">Personal Teacher</option>
-                    </>
-                  )}
-                </select>
-              </div>
-
-              {uploadResults && (
-                <div className="p-4 bg-gray-50 border rounded-lg">
-                  <h4 className="font-semibold mb-2">Upload Results:</h4>
-                  <p className="text-sm text-green-600">✓ Successful: {uploadResults.successful}</p>
-                  <p className="text-sm text-red-600">✗ Failed: {uploadResults.failed}</p>
-
-                  {uploadResults.errors && uploadResults.errors.length > 0 && (
-                    <div className="mt-3">
-                      <p className="text-sm font-medium text-gray-700 mb-1">Errors:</p>
-                      <div className="max-h-40 overflow-y-auto">
-                        {uploadResults.errors.map((err, idx) => (
-                          <p key={idx} className="text-xs text-red-600">
-                            Row {err.row}: {err.email} - {err.error}
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="flex space-x-3">
+          <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full p-6 overflow-y-auto max-h-[90vh]">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">Bulk Upload Users via CSV</h3>
+              <div className="flex items-center space-x-2">
+                <div className="text-sm text-gray-500">Step {uploadStep} of 3</div>
                 <button
-                  type="button"
                   onClick={() => {
                     setShowBulkUploadModal(false);
                     setCsvFile(null);
-                    setUploadResults(null);
+                    setUploadStep(1);
+                    setParsedData([]);
+                    setValidationErrors([]);
                   }}
-                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  className="text-gray-400 hover:text-gray-600"
                 >
-                  {uploadResults ? 'Close' : 'Cancel'}
+                  <X className="w-5 h-5" />
                 </button>
-                {!uploadResults && (
+              </div>
+            </div>
+
+            {/* Step 1: Upload CSV */}
+            {uploadStep === 1 && (
+              <>
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800 mb-3">
+                    <strong>📋 CSV Format Requirements:</strong>
+                  </p>
+                  <div className="bg-white p-3 rounded border border-blue-100 mb-3">
+                    <p className="text-xs font-mono text-gray-700 mb-1">Required columns:</p>
+                    <ul className="text-xs text-gray-600 list-disc list-inside space-y-1">
+                      <li><code className="bg-gray-100 px-1 rounded">name</code> - Full name of the user</li>
+                      <li><code className="bg-gray-100 px-1 rounded">email</code> - Valid email address</li>
+                    </ul>
+                    <p className="text-xs font-mono text-gray-700 mb-1 mt-2">Optional columns:</p>
+                    <ul className="text-xs text-gray-600 list-disc list-inside space-y-1">
+                      <li><code className="bg-gray-100 px-1 rounded">role</code> - student, teacher, personal_teacher{user?.role === 'root_admin' ? ', school_admin' : ''}</li>
+                      <li><code className="bg-gray-100 px-1 rounded">school</code> - School name (must match existing school)</li>
+                    </ul>
+                  </div>
+                  <ul className="text-sm text-blue-700 list-disc list-inside space-y-1">
+                    <li>Each user will receive an invite email with a unique link</li>
+                    <li>Invite links expire in 7 days</li>
+                    <li>Duplicate emails will be rejected</li>
+                  </ul>
+                </div>
+
+                <div className="mb-6 flex justify-center">
                   <button
-                    type="submit"
-                    disabled={isUploading}
-                    className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center justify-center"
+                    onClick={downloadSampleCSV}
+                    className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition shadow-lg transform hover:scale-105"
+                  >
+                    <Download className="w-5 h-5" />
+                    <span className="font-semibold">Download Sample CSV Template</span>
+                  </button>
+                </div>
+
+                <form onSubmit={handleBulkUpload} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Select CSV File</label>
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={(e) => setCsvFile(e.target.files[0])}
+                      className="w-full px-4 py-2 border rounded-lg"
+                      required
+                    />
+                    {csvFile && (
+                      <p className="text-sm text-green-600 mt-1 flex items-center">
+                        <CheckCircle className="w-4 h-4 mr-1" />
+                        Selected: {csvFile.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowBulkUploadModal(false);
+                        setCsvFile(null);
+                        setUploadStep(1);
+                      }}
+                      className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isUploading}
+                      className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center justify-center"
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Validating...
+                        </>
+                      ) : (
+                        'Next: Validate Data'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+
+            {/* Step 2: Validation Preview */}
+            {uploadStep === 2 && (
+              <>
+                <div className="mb-4">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">Validation Summary</p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Total rows: {parsedData.length} |
+                        <span className="text-green-600 ml-1 font-semibold">✓ Valid: {parsedData.filter(u => u.valid).length}</span> |
+                        <span className="text-red-600 ml-1 font-semibold">✗ Invalid: {validationErrors.length}</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mb-4 max-h-96 overflow-y-auto border rounded-lg">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-100 sticky top-0">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">#</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Name</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Email</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Role</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">School</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {parsedData.map((row, idx) => (
+                        <tr key={idx} className={row.valid ? 'bg-white' : 'bg-red-50'}>
+                          <td className="px-3 py-2 text-gray-600">{row.rowNumber}</td>
+                          <td className="px-3 py-2">{row.name}</td>
+                          <td className="px-3 py-2 text-xs">{row.email}</td>
+                          <td className="px-3 py-2">
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                              {row.role || 'student'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-xs">{row.schoolName || row.school || '-'}</td>
+                          <td className="px-3 py-2">
+                            {row.valid ? (
+                              <span className="flex items-center text-green-600 text-xs font-semibold">
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Valid
+                              </span>
+                            ) : (
+                              <div>
+                                <span className="flex items-center text-red-600 text-xs mb-1 font-semibold">
+                                  <XCircle className="w-4 h-4 mr-1" />
+                                  Invalid
+                                </span>
+                                <ul className="text-xs text-red-600 list-disc list-inside">
+                                  {row.errors.map((err, i) => (
+                                    <li key={i}>{err}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {validationErrors.length > 0 && (
+                  <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      ⚠️ <strong>Warning:</strong> {validationErrors.length} row(s) have errors and will be skipped.
+                      Only valid users will be uploaded.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUploadStep(1);
+                      setParsedData([]);
+                      setValidationErrors([]);
+                    }}
+                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmBulkUpload}
+                    disabled={isUploading || parsedData.filter(u => u.valid).length === 0}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center disabled:opacity-50"
                   >
                     {isUploading ? (
                       <>
@@ -587,12 +815,58 @@ const Users = () => {
                         Uploading...
                       </>
                     ) : (
-                      'Upload & Send Invites'
+                      `Upload ${parsedData.filter(u => u.valid).length} Valid User(s) & Send Invites`
                     )}
                   </button>
+                </div>
+              </>
+            )}
+
+            {/* Step 3: Results */}
+            {uploadStep === 3 && uploadResults && (
+              <>
+                <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <h4 className="font-semibold text-green-800 mb-2 flex items-center">
+                    <CheckCircle className="w-5 h-5 mr-2" />
+                    Upload Complete!
+                  </h4>
+                  <p className="text-sm text-green-700">✓ Successfully processed: {uploadResults.successful} users</p>
+                  <p className="text-sm text-gray-600 mt-1">Invite emails have been sent to all users.</p>
+                  {uploadResults.failed > 0 && (
+                    <p className="text-sm text-red-700 mt-1">✗ Failed: {uploadResults.failed} users</p>
+                  )}
+                </div>
+
+                {uploadResults.errors && uploadResults.errors.length > 0 && (
+                  <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm font-medium text-red-800 mb-2">Errors:</p>
+                    <div className="max-h-40 overflow-y-auto">
+                      {uploadResults.errors.map((err, idx) => (
+                        <p key={idx} className="text-xs text-red-600">
+                          Row {err.row}: {err.email} - {err.error}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
                 )}
-              </div>
-            </form>
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => {
+                      setShowBulkUploadModal(false);
+                      setCsvFile(null);
+                      setUploadResults(null);
+                      setParsedData([]);
+                      setValidationErrors([]);
+                      setUploadStep(1);
+                    }}
+                    className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  >
+                    Done
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
