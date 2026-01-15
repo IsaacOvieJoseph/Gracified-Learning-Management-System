@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Book, Users, DollarSign, FileText, Calendar, ChevronDown, ChevronUp, Monitor, AlertCircle, Clock } from 'lucide-react';
+import { Book, Users, DollarSign, FileText, Calendar, ChevronDown, ChevronUp, Monitor, AlertCircle, Clock, School } from 'lucide-react';
 import Layout from '../components/Layout';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -290,6 +290,13 @@ const Dashboard = () => {
                           <Book className="w-4 h-4 mr-1 text-gray-400" />
                           {classroom.topics?.length || 0} topics
                         </span>
+                        <span className="flex items-center min-w-0 max-w-[200px]">
+                          <School className="w-4 h-4 mr-1 text-gray-400 shrink-0" />
+                          <span className="truncate text-xs" title={(Array.isArray(classroom.schoolId) ? classroom.schoolId.map(s => s?.name || s).join(', ') : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}>
+                            {(Array.isArray(classroom.schoolId) ? (classroom.schoolId[0]?.name || classroom.schoolId[0]) : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}
+                            {Array.isArray(classroom.schoolId) && classroom.schoolId.length > 1 && ` +${classroom.schoolId.length - 1}`}
+                          </span>
+                        </span>
                       </div>
                     </div>
                     <div className="mt-2 md:mt-0 flex flex-wrap items-center gap-2">
@@ -302,10 +309,6 @@ const Dashboard = () => {
                           Free
                         </span>
                       )}
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${(Array.isArray(classroom.schoolId) ? classroom.schoolId.length > 0 : classroom.schoolId) ? 'bg-indigo-100 text-indigo-800' : 'bg-purple-100 text-purple-800'}`}>
-                        {(Array.isArray(classroom.schoolId) ? (classroom.schoolId[0]?.name || classroom.schoolId[0]) : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}
-                        {Array.isArray(classroom.schoolId) && classroom.schoolId.length > 1 && ` +${classroom.schoolId.length - 1}`}
-                      </span>
                     </div>
                   </Link>
                 ))
@@ -342,9 +345,12 @@ const Dashboard = () => {
                       <h4 className="font-semibold text-gray-800">{classroom.name}</h4>
                       <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{classroom.description}</p>
                       <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-600">
-                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${(Array.isArray(classroom.schoolId) ? classroom.schoolId.length > 0 : classroom.schoolId) ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'}`}>
-                          {(Array.isArray(classroom.schoolId) ? (classroom.schoolId[0]?.name || classroom.schoolId[0]) : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}
-                          {Array.isArray(classroom.schoolId) && classroom.schoolId.length > 1 && ` +${classroom.schoolId.length - 1}`}
+                        <span className="flex items-center min-w-0 max-w-[200px]">
+                          <School className="w-3.5 h-3.5 mr-1 text-gray-400 shrink-0" />
+                          <span className="truncate text-xs" title={(Array.isArray(classroom.schoolId) ? classroom.schoolId.map(s => s?.name || s).join(', ') : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}>
+                            {(Array.isArray(classroom.schoolId) ? (classroom.schoolId[0]?.name || classroom.schoolId[0]) : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}
+                            {Array.isArray(classroom.schoolId) && classroom.schoolId.length > 1 && ` +${classroom.schoolId.length - 1}`}
+                          </span>
                         </span>
                         <span className="flex items-center">
                           <Calendar className="w-3.5 h-3.5 mr-1 text-gray-400" />

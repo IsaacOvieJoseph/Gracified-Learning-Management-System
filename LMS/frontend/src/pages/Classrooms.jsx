@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
-import { Plus, Calendar, Users, Book, Video, Edit, Eye, EyeOff, Search, Trash2, Loader2, ChevronDown, ChevronRight, Clock } from 'lucide-react';
+import { Plus, Calendar, Users, Book, Video, Edit, Eye, EyeOff, Search, Trash2, Loader2, ChevronDown, ChevronRight, Clock, School } from 'lucide-react';
 import { convertLocalToUTC, convertUTCToLocal } from '../utils/timezone';
 import Select from 'react-select';
 import Layout from '../components/Layout';
@@ -274,11 +274,7 @@ const Classrooms = () => {
             <div className="flex justify-between items-start mb-4">
               <div>
                 <div className="flex items-center space-x-2">
-                  <h3 className="text-xl font-bold text-gray-800">{classroom.name}</h3>
-                  <span className={`text-xs px-2 py-1 rounded-full font-semibold ${(Array.isArray(classroom.schoolId) ? classroom.schoolId.length > 0 : classroom.schoolId) ? 'bg-indigo-100 text-indigo-800' : 'bg-purple-100 text-purple-800'}`}>
-                    {(Array.isArray(classroom.schoolId) ? (classroom.schoolId[0]?.name || classroom.schoolId[0]) : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}
-                    {Array.isArray(classroom.schoolId) && classroom.schoolId.length > 1 && ` +${classroom.schoolId.length - 1}`}
-                  </span>
+                  <h3 className="text-xl font-bold text-gray-800 truncate" title={classroom.name}>{classroom.name}</h3>
                 </div>
                 <p className="text-sm text-gray-600">
                   by {classroom.teacherId?.name || 'TBA'}
@@ -378,6 +374,13 @@ const Classrooms = () => {
                   {classroom.students?.length || 0} students enrolled
                 </div>
               )}
+              <div className="flex items-center text-sm text-gray-600">
+                <School className="w-4 h-4 mr-2 flex-shrink-0" />
+                <span className="truncate" title={(Array.isArray(classroom.schoolId) ? classroom.schoolId.map(s => s?.name || s).join(', ') : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}>
+                  {(Array.isArray(classroom.schoolId) ? (classroom.schoolId[0]?.name || classroom.schoolId[0]) : classroom.schoolId?.name) || classroom.teacherId?.tutorialId?.name || 'Tutorial'}
+                  {Array.isArray(classroom.schoolId) && classroom.schoolId.length > 1 && ` +${classroom.schoolId.length - 1}`}
+                </span>
+              </div>
               <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
                 <div className="flex items-center">
                   <Book className="w-4 h-4 mr-2" />
