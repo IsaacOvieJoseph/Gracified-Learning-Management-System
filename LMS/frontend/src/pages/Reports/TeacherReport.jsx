@@ -4,6 +4,7 @@ import Select from 'react-select';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { Users, FileText, TrendingUp, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import StudentReportTable from '../../components/Reports/StudentReportTable';
 
 const TeacherReport = () => {
     const [classrooms, setClassrooms] = useState([]);
@@ -125,36 +126,9 @@ const TeacherReport = () => {
                         </div>
 
                         {/* Student Leaderboard / At Risk */}
-                        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-                            <h3 className="font-bold text-gray-800 mb-4">Student Performance</h3>
-                            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-gray-50 text-gray-500 sticky top-0">
-                                        <tr>
-                                            <th className="px-3 py-2 rounded-l-lg">Name</th>
-                                            <th className="px-3 py-2 text-right">Avg %</th>
-                                            <th className="px-3 py-2 text-right rounded-r-lg">Completed</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {reportData.studentStats.map((student) => (
-                                            <tr key={student.id} className="hover:bg-gray-50">
-                                                <td className="px-3 py-3 font-medium text-gray-900">{student.name}</td>
-                                                <td className="px-3 py-3 text-right">
-                                                    <span className={`font-bold ${student.averagePercentage >= 70 ? 'text-green-600' :
-                                                        student.averagePercentage >= 50 ? 'text-yellow-600' : 'text-red-600'
-                                                        }`}>
-                                                        {student.averagePercentage}%
-                                                    </span>
-                                                </td>
-                                                <td className="px-3 py-3 text-right text-gray-600">
-                                                    {student.assignmentsSubmitted} / {student.totalAssignments}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                        {/* Student Leaderboard / At Risk - Replaced with Full Table */}
+                        <div className="md:col-span-2">
+                            <StudentReportTable students={reportData.studentStats} classroomName={reportData.classroom.name} />
                         </div>
                     </div>
                 </>

@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { School, Users, BookOpen, TrendingUp } from 'lucide-react';
+import { School, Users, BookOpen, TrendingUp, Eye } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Select from 'react-select';
+import StudentReportTable from '../../components/Reports/StudentReportTable';
 
 const SchoolAdminReport = () => {
     const { user } = useAuth();
@@ -12,6 +13,33 @@ const SchoolAdminReport = () => {
     const [selectedSchool, setSelectedSchool] = useState(null);
     const [reportData, setReportData] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    const [viewingClass, setViewingClass] = useState(null); // { id, name }
+    const [classDetails, setClassDetails] = useState(null);
+    const [loadingDetails, setLoadingDetails] = useState(false);
+
+    // Fetch Class Details when viewingClass is set
+    useEffect(() => {
+        if (!viewingClass) return;
+
+        const fetchClassDetails = async () => {
+            setLoadingDetails(true);
+            try {
+                const token = localStorage.getItem('token');
+                const res = await axios.get(`http://localhost:5000/api/reports/class/${viewingClass.id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setClassDetails(res.data);
+            } catch (error) {
+                console.error(error);
+                toast.error("Failed to load class details");
+                setViewingClass(null);
+            } finally {
+                setLoadingDetails(false);
+            }
+        };
+        fetchClassDetails();
+    }, [viewingClass]);
 
     // Fetch Admin's Schools on mount
     useEffect(() => {
@@ -168,6 +196,7 @@ const SchoolAdminReport = () => {
                                 <th className="px-6 py-4 text-center">Assignments</th>
                                 <th className="px-6 py-4 text-right">Avg Attendance</th>
                                 <th className="px-6 py-4 text-right">Avg Performance</th>
+                                <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 text-sm">
@@ -190,12 +219,43 @@ const SchoolAdminReport = () => {
                                             </div>
                                         </div>
                                     </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <button
+                                            onClick={() => setViewingClass(cls)}
+                                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                                            title="View Student Report Card"
+                                        >
+                                            <Eye size={20} />
+                                        </button>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
             </div>
+            {/* Class Details Modal */}
+            {viewingClass && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+                    <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+                            <h3 className="text-xl font-bold text-gray-900">Report Card: {viewingClass.name}</h3>
+                            <button onClick={() => setViewingClass(null)} className="text-gray-500 hover:text-gray-700">
+                                &times; Close
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+                            {loadingDetails ? (
+                                <div className="text-center py-10">Loading Details...</div>
+                            ) : classDetails ? (
+                                <StudentReportTable students={classDetails.studentStats} classroomName={viewingClass.name} />
+                            ) : (
+                                <div className="text-center py-10">Details not available</div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
