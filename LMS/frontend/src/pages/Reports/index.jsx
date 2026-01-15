@@ -4,6 +4,7 @@ import StudentReport from './StudentReport';
 import TeacherReport from './TeacherReport';
 import SchoolAdminReport from './SchoolAdminReport';
 import RootAdminReport from './RootAdminReport';
+import Layout from '../../components/Layout';
 import { Activity, BarChart2 } from 'lucide-react';
 
 const Reports = () => {
@@ -35,7 +36,7 @@ const Reports = () => {
     };
 
     return (
-        <div className="container mx-auto px-4 py-8">
+        <Layout>
             <div className="mb-8 flex items-center gap-3">
                 <div className="p-3 bg-indigo-100 rounded-lg">
                     <BarChart2 className="w-8 h-8 text-indigo-600" />
@@ -49,7 +50,7 @@ const Reports = () => {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 min-h-[600px]">
                 {renderReportView()}
             </div>
-        </div>
+        </Layout>
     );
 };
 

@@ -172,6 +172,77 @@ const Layout = ({ children }) => {
           user={user}
         />
       )}
+
+      {/* Mobile Sidebar (Drawer) */}
+      <div className={`fixed inset-0 z-[100] md:hidden transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+        {/* Backdrop */}
+        <div
+          className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+
+        {/* Sidebar Content */}
+        <div className={`absolute left-0 top-0 h-full w-72 bg-white shadow-2xl transform transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <div className="p-6 h-full flex flex-col">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center space-x-3">
+                <img src={logo} alt="Logo" className="w-10 h-10 rounded-full" />
+                <h2 className="text-xl font-bold text-gray-800">Gracified</h2>
+              </div>
+              <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 -mr-2 text-gray-500 hover:text-gray-700">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* School Switcher in Sidebar */}
+            <div className="mb-6">
+              <SchoolSwitcher user={user} selectedSchools={selectedSchools} setSelectedSchools={setSelectedSchools} />
+            </div>
+
+            <nav className="flex-1 space-y-1 overflow-y-auto pr-2 custom-scrollbar">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.path);
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${active
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                      : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                  >
+                    <Icon className={`w-5 h-5 ${active ? 'text-white' : 'text-gray-400'}`} />
+                    <span className="font-medium">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* Bottom Section */}
+            <div className="pt-6 border-t border-gray-100 mt-auto">
+              <div className="flex items-center space-x-3 mb-6 p-2">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
+                  {user?.name?.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-gray-800 truncate">{user?.name}</p>
+                  <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors font-semibold"
+              >
+                <LogOut className="w-5 h-5" />
+                <span>Logout</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <header className="bg-white shadow-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -338,49 +409,6 @@ const Layout = ({ children }) => {
               </button>
             </div>
           </div>
-
-          {/* Mobile Menu Dropdown */}
-          {isMobileMenuOpen && (
-            <div className="md:hidden mt-4 py-4 border-t border-gray-100 space-y-4">
-              {/* Mobile School Switcher */}
-              <div className="px-2">
-                <SchoolSwitcher user={user} selectedSchools={selectedSchools} setSelectedSchools={setSelectedSchools} />
-              </div>
-
-              {/* Mobile Navigation Links */}
-              <nav className="flex flex-col space-y-2">
-                {navItems.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className={`flex items-center space-x-2 px-4 py-3 rounded-lg transition ${isActive(item.path)
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-600 hover:bg-gray-100'
-                        }`}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
-              </nav>
-
-              {/* Mobile User Info & Logout */}
-              <div className="pt-4 border-t border-gray-100 px-2 flex justify-between items-center">
-                <div className="text-sm font-medium text-gray-700">{user?.name}</div>
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center space-x-2 px-4 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Logout</span>
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </header>
 
