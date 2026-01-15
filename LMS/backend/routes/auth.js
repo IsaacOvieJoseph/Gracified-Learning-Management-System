@@ -43,10 +43,29 @@ const upload = multer({
 });
 
 // Logo upload endpoint
-router.post('/upload-logo', upload.single('logo'), (req, res) => {
+router.post('/upload-logo', upload.single('logo'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: 'No file uploaded' });
   }
+
+  // Deep file validation (Magic Numbers)
+  try {
+    const FileType = await import('file-type');
+    const type = await FileType.fromFile(req.file.path);
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!type || !allowedTypes.includes(type.mime)) {
+      // Delete the invalid file
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ message: 'Invalid file content. Only real images (JPG, PNG, WebP) are allowed.' });
+    }
+  } catch (err) {
+    console.error('File validation error:', err.message);
+    // If validation fails, we play it safe and delete the file
+    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    return res.status(500).json({ message: 'Error validating file content' });
+  }
+
   const protocol = req.protocol;
   const host = req.get('host');
   const imageUrl = `${protocol}://${host}/uploads/logos/${req.file.filename}`;
