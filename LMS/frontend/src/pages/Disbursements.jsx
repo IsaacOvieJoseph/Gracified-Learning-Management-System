@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { CheckCircle, Clock, Banknote, User, Layout as LayoutIcon } from 'lucide-react';
 import Layout from '../components/Layout';
+import ConfirmationModal from '../components/ConfirmationModal';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { formatAmount } from '../utils/currency';
@@ -13,6 +14,9 @@ const Disbursements = () => {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('pending');
     const [processingId, setProcessingId] = useState(null);
+    const [showApproveModal, setShowApproveModal] = useState(false);
+    const [paymentToApprove, setPaymentToApprove] = useState(null);
+    const [isApproving, setIsApproving] = useState(false);
 
     useEffect(() => {
         if (user?.role === 'root_admin') {
@@ -38,18 +42,26 @@ const Disbursements = () => {
         }
     };
 
-    const handleApprove = async (paymentId) => {
-        if (!window.confirm('Are you sure you want to approve this disbursement?')) return;
+    const handleApprove = (paymentId) => {
+        setPaymentToApprove(paymentId);
+        setShowApproveModal(true);
+    };
 
-        setProcessingId(paymentId);
+    const confirmApprove = async () => {
+        if (!paymentToApprove) return;
+        setIsApproving(true);
+        setProcessingId(paymentToApprove);
         try {
-            await api.post(`/disbursements/approve/${paymentId}`, {}, { skipLoader: true });
+            await api.post(`/disbursements/approve/${paymentToApprove}`, {}, { skipLoader: true });
             toast.success('Disbursement approved and marked as paid');
+            setShowApproveModal(false);
+            setPaymentToApprove(null);
             fetchData();
         } catch (error) {
             console.error('Approval error:', error);
             toast.error(error.response?.data?.message || 'Failed to approve disbursement');
         } finally {
+            setIsApproving(false);
             setProcessingId(null);
         }
     };
@@ -196,7 +208,20 @@ const Disbursements = () => {
                     </div>
                 )}
             </div>
-        </Layout>
+
+            <ConfirmationModal
+                show={showApproveModal}
+                onClose={() => setShowApproveModal(false)}
+                onConfirm={confirmApprove}
+                title="Approve Disbursement"
+                message="Are you sure you want to approve this disbursement? This will mark the payment as completed."
+                confirmText="Approve & Pay"
+                confirmButtonColor="bg-indigo-600 hover:bg-indigo-700"
+                iconBg="bg-indigo-100"
+                iconColor="text-indigo-600"
+                isLoading={isApproving}
+            />
+        </Layout >
     );
 };
 

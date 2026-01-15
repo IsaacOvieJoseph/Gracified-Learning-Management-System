@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Loader2, CheckCircle, Clock, Circle, Play, Flag, Book, Pencil, GripVertical, RotateCcw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import ConfirmationModal from './ConfirmationModal';
 import api from '../utils/api';
 
 const TopicManagementModal = ({ show, onClose, classroomId, onSuccess }) => {
@@ -27,6 +28,9 @@ const TopicManagementModal = ({ show, onClose, classroomId, onSuccess }) => {
     const [showProgressionModal, setShowProgressionModal] = useState(false);
     const [topicToComplete, setTopicToComplete] = useState(null);
     const [nextTopic, setNextTopic] = useState(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [topicToDelete, setTopicToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         if (show && classroomId) {
@@ -94,17 +98,26 @@ const TopicManagementModal = ({ show, onClose, classroomId, onSuccess }) => {
         }
     };
 
-    const handleDelete = async (topicId) => {
-        if (!window.confirm('Are you sure you want to delete this topic?')) return;
+    const handleDelete = (topicId) => {
+        setTopicToDelete(topicId);
+        setShowDeleteConfirm(true);
+    };
 
+    const confirmDelete = async () => {
+        if (!topicToDelete) return;
+        setIsDeleting(true);
         try {
-            await api.delete(`/topics/${topicId}`);
+            await api.delete(`/topics/${topicToDelete}`);
             toast.success('Topic deleted successfully!');
+            setShowDeleteConfirm(false);
+            setTopicToDelete(null);
             fetchTopics();
             fetchCurrentTopic();
             if (onSuccess) onSuccess();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Error deleting topic');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -602,6 +615,16 @@ const TopicManagementModal = ({ show, onClose, classroomId, onSuccess }) => {
                     </div>
                 </div>
             )}
+
+            <ConfirmationModal
+                show={showDeleteConfirm}
+                onClose={() => setShowDeleteConfirm(false)}
+                onConfirm={confirmDelete}
+                title="Delete Topic"
+                message="Are you sure you want to delete this topic? All related assignments and student progress for this topic will be removed."
+                confirmText="Delete"
+                isLoading={isDeleting}
+            />
         </div>
     );
 };

@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast';
 import Select from 'react-select';
 import { Plus, Edit, Trash2, Search, Loader2, Upload, Download, X, CheckCircle, XCircle, Eye, EyeOff } from 'lucide-react';
 import Layout from '../components/Layout';
+import ConfirmationModal from '../components/ConfirmationModal';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { validateEmail, validatePassword, passwordRequirements } from '../utils/validation';
@@ -45,6 +46,9 @@ const Users = () => {
   const [validationErrors, setValidationErrors] = useState([]);
 
   const [showPassword, setShowPassword] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -494,15 +498,24 @@ Bob Johnson,bob@example.com,student,`;
 
   const [isCreating, setIsCreating] = useState(false);
 
-  const handleDelete = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
+  const handleDelete = (userId) => {
+    setUserToDelete(userId);
+    setShowDeleteModal(true);
+  };
 
+  const confirmDelete = async () => {
+    if (!userToDelete) return;
+    setIsDeleting(true);
     try {
-      await api.delete(`/users/${userId}`);
+      await api.delete(`/users/${userToDelete}`);
       toast.success('User deleted successfully');
+      setShowDeleteModal(false);
+      setUserToDelete(null);
       fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error deleting user');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -1129,9 +1142,18 @@ Bob Johnson,bob@example.com,student,`;
           </div>
         </div>
       )}
-    </Layout>
+
+      <ConfirmationModal
+        show={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDelete}
+        title="Delete User"
+        message="Are you sure you want to delete this user? This action cannot be undone."
+        confirmText="Delete"
+        isLoading={isDeleting}
+      />
+    </Layout >
   );
 };
 
 export default Users;
-

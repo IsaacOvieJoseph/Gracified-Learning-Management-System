@@ -5,6 +5,7 @@ import { toast } from 'react-hot-toast';
 
 import { useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
+import ConfirmationModal from "../components/ConfirmationModal";
 import { Plus, Pencil, Trash2, ArrowUpDown } from "lucide-react";
 
 const CreateSchoolModal = ({ open, onClose, onCreated }) => {
@@ -397,6 +398,9 @@ export default function SchoolsPage() {
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [schoolToDelete, setSchoolToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const canManage = ["root_admin", "school_admin"].includes(user?.role); // Root admin and school admin can manage (edit/delete) schools
   const canCreateSchool = ["root_admin", "school_admin"].includes(user?.role); // Both root_admin and school_admin can create new schools
@@ -484,16 +488,25 @@ export default function SchoolsPage() {
   // -----------------------
   // DELETE SCHOOL
   // -----------------------
-  const deleteSchool = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this school?")) return;
+  const deleteSchool = (id) => {
+    setSchoolToDelete(id);
+    setShowDeleteModal(true);
+  };
 
+  const confirmDelete = async () => {
+    if (!schoolToDelete) return;
+    setIsDeleting(true);
     try {
-      await api.delete(`/schools/${id}`);
+      await api.delete(`/schools/${schoolToDelete}`);
       toast.success('School deleted successfully');
+      setShowDeleteModal(false);
+      setSchoolToDelete(null);
       loadSchools();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Delete failed');
       console.error("Delete failed:", err);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -611,6 +624,16 @@ export default function SchoolsPage() {
         school={selectedSchool}
         onClose={() => setEditModalOpen(false)}
         onUpdated={loadSchools}
+      />
+
+      <ConfirmationModal
+        show={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDelete}
+        title="Delete School"
+        message="Are you sure you want to delete this school? This action cannot be undone and will affect all related users and classrooms."
+        confirmText="Delete"
+        isLoading={isDeleting}
       />
     </Layout>
   );

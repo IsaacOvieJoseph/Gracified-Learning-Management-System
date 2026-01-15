@@ -14,6 +14,7 @@ import TopicManagementModal from '../components/TopicManagementModal';
 import TopicDisplay from '../components/TopicDisplay';
 import GoogleMeetAuth from '../components/GoogleMeetAuth';
 import PaymentRequiredModal from '../components/PaymentRequiredModal';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const ClassroomDetail = () => {
   const { id } = useParams();
@@ -115,6 +116,9 @@ const ClassroomDetail = () => {
   const [assignmentToEdit, setAssignmentToEdit] = useState(null);
   const [publishing, setPublishing] = useState(false);
   const [notifyingAssignmentId, setNotifyingAssignmentId] = useState(null);
+  const [showRemoveStudentModal, setShowRemoveStudentModal] = useState(false);
+  const [studentToRemove, setStudentToRemove] = useState(null);
+  const [isRemovingStudent, setIsRemovingStudent] = useState(false);
 
   // Payment Check Logic
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -667,16 +671,25 @@ const ClassroomDetail = () => {
     }
   };
 
-  const handleRemoveStudent = async (studentId) => {
-    if (!window.confirm('Are you sure you want to remove this student?')) return;
+  const handleRemoveStudent = (studentId) => {
+    setStudentToRemove(studentId);
+    setShowRemoveStudentModal(true);
+  };
 
+  const confirmRemoveStudent = async () => {
+    if (!studentToRemove) return;
+    setIsRemovingStudent(true);
     try {
-      await api.delete(`/classrooms/${id}/students/${studentId}`);
+      await api.delete(`/classrooms/${id}/students/${studentToRemove}`);
       toast.success('Student removed successfully!');
+      setShowRemoveStudentModal(false);
+      setStudentToRemove(null);
       fetchClassroom();
       fetchAvailableStudents();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error removing student');
+    } finally {
+      setIsRemovingStudent(false);
     }
   };
 
@@ -1967,171 +1980,75 @@ const ClassroomDetail = () => {
 
 
       {/* Delete Topic Confirmation Modal */}
-      {
-        showDeleteTopicModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-2xl max-w-sm w-full p-6">
-              <h3 className="text-lg font-bold mb-4 text-gray-800">Delete Topic</h3>
-              <p className="text-gray-600 mb-6">Are you sure you want to delete this topic? This action cannot be undone.</p>
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => {
-                    setShowDeleteTopicModal(false);
-                    setTopicToDelete(null);
-                  }}
-                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDeleteTopic}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      }
+      <ConfirmationModal
+        show={showDeleteTopicModal}
+        onClose={() => {
+          setShowDeleteTopicModal(false);
+          setTopicToDelete(null);
+        }}
+        onConfirm={confirmDeleteTopic}
+        title="Delete Topic?"
+        message="Are you sure you want to delete this topic? This action cannot be undone."
+        confirmText="Delete"
+      />
 
       {/* Leave Class Confirmation Modal */}
-      {
-        showLeaveClassModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-2xl max-w-sm w-full p-6">
-              <h3 className="text-lg font-bold mb-4 text-gray-800">Leave Class</h3>
-              <p className="text-gray-600 mb-6">Are you sure you want to leave this class? You will need to enroll again to rejoin.</p>
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowLeaveClassModal(false)}
-                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleLeaveClass}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-                >
-                  Leave
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      }
+      <ConfirmationModal
+        show={showLeaveClassModal}
+        onClose={() => setShowLeaveClassModal(false)}
+        onConfirm={handleLeaveClass}
+        title="Leave Class"
+        message="Are you sure you want to leave this class? You will need to enroll again to rejoin."
+        confirmText="Leave"
+      />
       {/* Delete Assignment Modal */}
-      {
-        showDeleteAssignmentModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
-            <div className="bg-white rounded-lg shadow-2xl max-w-sm w-full p-6 text-center">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Trash2 className="w-8 h-8 text-red-600" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-800 mb-2">Delete Assignment?</h3>
-              <p className="text-gray-600 mb-6">Are you sure you want to delete this assignment? All student submissions and grades will be permanently removed. This action cannot be undone.</p>
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowDeleteAssignmentModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDeleteAssignment}
-                  disabled={isDeletingAssignment}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold disabled:bg-red-400 flex items-center justify-center"
-                >
-                  {isDeletingAssignment ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    'Delete'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      }
+      <ConfirmationModal
+        show={showDeleteAssignmentModal}
+        onClose={() => setShowDeleteAssignmentModal(false)}
+        onConfirm={confirmDeleteAssignment}
+        title="Delete Assignment?"
+        message="Are you sure you want to delete this assignment? All student submissions and grades will be permanently removed. This action cannot be undone."
+        confirmText="Delete"
+        isLoading={isDeletingAssignment}
+      />
 
       {/* Delete Classroom Modal */}
-      {
-        showDeleteClassModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
-              <div className="flex justify-center mb-4">
-                <div className="bg-red-100 p-3 rounded-full">
-                  <Trash2 className="w-6 h-6 text-red-600" />
-                </div>
-              </div>
-              <h3 className="text-xl font-bold text-center text-gray-900 mb-2">Delete Classroom?</h3>
-              <p className="text-gray-500 text-center mb-6">
-                Are you sure you want to delete this classroom? This action cannot be undone.
-              </p>
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowDeleteClassModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-                  disabled={isDeletingClass}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDeleteClassroom}
-                  disabled={isDeletingClass}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center justify-center"
-                >
-                  {isDeletingClass ? 'Deleting...' : 'Delete'}
-                  {isDeletingClass && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
-                </button>
-              </div>
-            </div>
-          </div>
-
-        )
-      }
+      <ConfirmationModal
+        show={showDeleteClassModal}
+        onClose={() => setShowDeleteClassModal(false)}
+        onConfirm={confirmDeleteClassroom}
+        title="Delete Classroom?"
+        message="Are you sure you want to delete this classroom? This action cannot be undone."
+        confirmText="Delete"
+        isLoading={isDeletingClass}
+      />
 
       {/* End Classroom Confirmation Modal */}
-      {
-        showEndClassModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
-              <div className="flex justify-center mb-4">
-                <div className="bg-indigo-100 p-3 rounded-full">
-                  <Flag className="w-6 h-6 text-indigo-600" />
-                </div>
-              </div>
-              <h3 className="text-xl font-bold text-center text-gray-900 mb-2">End Classroom?</h3>
-              <p className="text-gray-500 text-center mb-4 text-sm">
-                Are you sure? This action will:
-              </p>
-              <ul className="list-disc list-inside text-sm text-gray-500 mb-6 space-y-1">
-                <li>Remove all students</li>
-                <li>Unpublish assignments & clear deadlines</li>
-                <li>Reset all topic progress</li>
-                <li>Notify students and request feedback</li>
-              </ul>
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowEndClassModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-                  disabled={isEndingClass}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmEndClassroom}
-                  disabled={isEndingClass}
-                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center justify-center"
-                >
-                  {isEndingClass ? 'Ending...' : 'End Class'}
-                  {isEndingClass && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
-                </button>
-              </div>
-            </div>
+      <ConfirmationModal
+        show={showEndClassModal}
+        onClose={() => setShowEndClassModal(false)}
+        onConfirm={confirmEndClassroom}
+        title="End Classroom?"
+        message={
+          <div>
+            <p className="text-gray-500 text-center mb-4 text-sm">
+              Are you sure? This action will:
+            </p>
+            <ul className="list-disc list-inside text-sm text-gray-500 mb-2 space-y-1 text-left">
+              <li>Remove all students</li>
+              <li>Unpublish assignments & clear deadlines</li>
+              <li>Reset all topic progress</li>
+              <li>Notify students and request feedback</li>
+            </ul>
           </div>
-        )
-      }
+        }
+        confirmText="End Class"
+        confirmButtonColor="bg-indigo-600 hover:bg-indigo-700"
+        icon={Flag}
+        iconBg="bg-indigo-100"
+        iconColor="text-indigo-600"
+        isLoading={isEndingClass}
+      />
 
       {/* Topic Management Modal */}
       <TopicManagementModal
@@ -2151,9 +2068,18 @@ const ClassroomDetail = () => {
           </div>
         )
       }
+
+      <ConfirmationModal
+        show={showRemoveStudentModal}
+        onClose={() => setShowRemoveStudentModal(false)}
+        onConfirm={confirmRemoveStudent}
+        title="Remove Student"
+        message="Are you sure you want to remove this student from the classroom? They will lose access to all course materials."
+        confirmText="Remove"
+        isLoading={isRemovingStudent}
+      />
     </Layout >
   );
 };
 
 export default ClassroomDetail;
-
