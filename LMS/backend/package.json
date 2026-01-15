@@ -4,7 +4,6 @@
   "description": "Learning Management System Backend",
   "main": "server.js",
   "scripts": {
-    "postinstall": "npm audit fix",
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
