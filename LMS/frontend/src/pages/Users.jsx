@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import Select from 'react-select';
-import { Plus, Edit, Trash2, Search, Loader2, Upload, Download, X, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Loader2, Upload, Download, X, CheckCircle, XCircle, Eye, EyeOff } from 'lucide-react';
 import Layout from '../components/Layout';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -43,6 +43,8 @@ const Users = () => {
   const [uploadStep, setUploadStep] = useState(1); // 1: Upload, 2: Validate, 3: Results
   const [parsedData, setParsedData] = useState([]);
   const [validationErrors, setValidationErrors] = useState([]);
+
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -518,6 +520,8 @@ Bob Johnson,bob@example.com,student,`;
     }
   };
 
+  const [showModalPassword, setShowModalPassword] = useState(false);
+
   if (loading) {
     return <Layout><div className="text-center py-8">Loading...</div></Layout>;
   }
@@ -547,6 +551,7 @@ Bob Johnson,bob@example.com,student,`;
                   } else {
                     setFormData({ name: '', email: '', password: '', role: 'student', schoolIds: [] });
                   }
+                  setShowModalPassword(false);
                   setShowCreateModal(true);
                 }}
                 className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
@@ -652,7 +657,12 @@ Bob Johnson,bob@example.com,student,`;
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 overflow-y-auto max-h-[90vh]">
-            <h3 className="text-xl font-bold mb-4">Create User</h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">Create User</h3>
+              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
             <form onSubmit={(e) => { setIsCreating(true); handleCreate(e); }} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
@@ -660,7 +670,7 @@ Bob Johnson,bob@example.com,student,`;
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg"
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                   required
                 />
               </div>
@@ -670,20 +680,29 @@ Bob Johnson,bob@example.com,student,`;
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg"
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                   required
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg"
-                  required
-                  minLength="6"
-                />
+                <div className="relative">
+                  <input
+                    type={showModalPassword ? 'text' : 'password'}
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none pr-10"
+                    required
+                    minLength="6"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                    onClick={() => setShowModalPassword(!showModalPassword)}
+                  >
+                    {showModalPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
