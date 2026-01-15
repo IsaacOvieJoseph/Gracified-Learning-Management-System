@@ -264,14 +264,20 @@ const Dashboard = () => {
                             classroom.schedule.map((session, index) => {
                               const local = convertUTCToLocal(session.dayOfWeek, session.startTime);
                               const localEnd = convertUTCToLocal(session.dayOfWeek, session.endTime);
+                              const isMultiDay = classroom.schedule.length > 1;
                               return (
                                 <span key={index} className="mr-2">
-                                  {local.dayOfWeek.substring(0, 3)} {local.time}-{localEnd.time}
+                                  {local.dayOfWeek.substring(0, 3)}
+                                  {!isMultiDay && ` ${local.time}-${localEnd.time}`}
+                                  {isMultiDay && index < classroom.schedule.length - 1 ? ',' : ''}
                                 </span>
                               );
                             })
                           ) : (
                             <span>No schedule available</span>
+                          )}
+                          {classroom.schedule?.length > 0 && (
+                            <span className="ml-1 text-[10px] font-bold text-indigo-500 uppercase">(Weekly)</span>
                           )}
                         </span>
                         {user?.role !== 'student' && (
@@ -343,12 +349,17 @@ const Dashboard = () => {
                         <span className="flex items-center">
                           <Calendar className="w-3.5 h-3.5 mr-1 text-gray-400" />
                           {(() => {
-                            const first = classroom.schedule?.[0];
-                            if (!first) return 'No schedule';
-                            const local = convertUTCToLocal(first.dayOfWeek, first.startTime);
-                            return `${local.dayOfWeek.substring(0, 3)} ${local.time}`;
+                            if (!classroom.schedule || classroom.schedule.length === 0) return 'No schedule';
+                            if (classroom.schedule.length === 1) {
+                              const local = convertUTCToLocal(classroom.schedule[0].dayOfWeek, classroom.schedule[0].startTime);
+                              return `${local.dayOfWeek.substring(0, 3)} ${local.time}`;
+                            }
+                            return classroom.schedule.slice(0, 3).map((s, i) => {
+                              const local = convertUTCToLocal(s.dayOfWeek, s.startTime);
+                              return `${local.dayOfWeek.substring(0, 3)}${i < Math.min(classroom.schedule.length, 3) - 1 ? ',' : ''}`;
+                            }).join(' ') + (classroom.schedule.length > 3 ? ` +${classroom.schedule.length - 3}` : '');
                           })()}
-                          {classroom.schedule?.length > 1 && ` +${classroom.schedule.length - 1} more`}
+                          <span className="ml-1 text-[10px] font-bold text-indigo-500 uppercase">(Weekly)</span>
                         </span>
                         {user?.role !== 'student' && (
                           <span className="flex items-center">

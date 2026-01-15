@@ -348,19 +348,24 @@ const Classrooms = () => {
                 <div className="truncate">
                   {classroom.schedule && classroom.schedule.length > 0 ? (
                     <>
-                      {classroom.schedule.slice(0, 2).map((session, index) => {
+                      {classroom.schedule.slice(0, 3).map((session, index) => {
                         const local = convertUTCToLocal(session.dayOfWeek, session.startTime);
                         const localEnd = convertUTCToLocal(session.dayOfWeek, session.endTime);
+                        const isMultiDay = classroom.schedule.length > 1;
                         return (
                           <span key={index} className="mr-1">
-                            {local.dayOfWeek ? local.dayOfWeek.substring(0, 3) : 'N/A'} {local.hhmm}-{localEnd.hhmm} ({local.timezone})
-                            {index < Math.min(classroom.schedule.length, 2) - 1 ? ',' : ''}
+                            {local.dayOfWeek ? local.dayOfWeek.substring(0, 3) : 'N/A'}
+                            {!isMultiDay && ` ${local.hhmm}-${localEnd.hhmm} (${local.timezone})`}
+                            {index < Math.min(classroom.schedule.length, 3) - 1 ? ',' : ''}
                           </span>
                         );
                       })}
-                      {classroom.schedule.length > 2 && (
-                        <span className="text-gray-400">+{classroom.schedule.length - 2} more</span>
+                      {classroom.schedule.length > 3 && (
+                        <span className="text-gray-400">+{classroom.schedule.length - 3} more</span>
                       )}
+                      <span className="ml-1 text-[10px] font-bold text-indigo-500 uppercase">
+                        (Weekly)
+                      </span>
                     </>
                   ) : (
                     <span>No schedule available</span>
@@ -578,7 +583,7 @@ const Classrooms = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Schedule</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Schedule (Weekly)</label>
                 {formData.schedule.map((session, index) => (
                   <div key={index} className="flex space-x-2 mb-2 items-center">
                     <select

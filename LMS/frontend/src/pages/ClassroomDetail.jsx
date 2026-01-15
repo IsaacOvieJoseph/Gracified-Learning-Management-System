@@ -877,7 +877,7 @@ const ClassroomDetail = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Schedule</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Schedule (Weekly)</label>
                     {editForm.schedule.map((session, index) => (
                       <div key={index} className="flex space-x-2 mb-2 items-center">
                         <select
@@ -1055,6 +1055,9 @@ const ClassroomDetail = () => {
                         </span>
                       );
                     })}
+                    <div className="w-full mt-1 text-[10px] font-bold text-indigo-500 uppercase tracking-wider">
+                      (Weekly Recurring Sessions)
+                    </div>
                   </div>
                 ) : (
                   <span className="text-gray-400">No schedule</span>
