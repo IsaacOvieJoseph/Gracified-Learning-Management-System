@@ -2,6 +2,8 @@ const User = require('../models/User');
 const Assignment = require('../models/Assignment');
 const Classroom = require('../models/Classroom');
 const School = require('../models/School');
+const Attendance = require('../models/Attendance');
+const CallSession = require('../models/CallSession');
 
 // Helper to calculate basic stats
 const calculateStats = (scores) => {
@@ -54,6 +56,7 @@ exports.getStudentPerformance = async (req, res) => {
                     submittedCount: 0,
                     totalScore: 0,
                     maxPossibleScore: 0,
+                    attendance: { attended: 0, total: 0 },
                     assignments: []
                 };
             }
@@ -103,6 +106,28 @@ exports.getStudentPerformance = async (req, res) => {
             performanceByClass[classId].assignments.push(assignmentData);
         });
 
+        // Calculate Attendance Per Class
+        for (const classId of Object.keys(performanceByClass)) {
+            const totalSessions = await CallSession.countDocuments({ classroomId: classId });
+            const attendedSessions = await Attendance.countDocuments({ classroomId: classId, studentId: studentId });
+            performanceByClass[classId].attendance = {
+                attended: attendedSessions,
+                total: totalSessions,
+                percentage: totalSessions > 0 ? (attendedSessions / totalSessions) * 100 : 0
+            };
+        }
+
+        // Calculate Global Attendance
+        const allClassIds = Object.keys(performanceByClass);
+        let globalAttended = 0;
+        let globalTotalSessions = 0;
+
+        for (const cid of allClassIds) {
+            globalAttended += performanceByClass[cid].attendance.attended;
+            globalTotalSessions += performanceByClass[cid].attendance.total;
+        }
+        const globalAttendancePercentage = globalTotalSessions > 0 ? (globalAttended / globalTotalSessions) * 100 : 0;
+
         // Calculate percentages
         const overallPercentage = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
 
@@ -115,7 +140,8 @@ exports.getStudentPerformance = async (req, res) => {
                 totalAssignments,
                 submittedCount,
                 overallPercentage: parseFloat(overallPercentage.toFixed(2)),
-                pendingCount: totalAssignments - submittedCount // Roughly, or specifically calculate 'missing'
+                pendingCount: totalAssignments - submittedCount, // Roughly, or specifically calculate 'missing'
+                attendancePercentage: parseFloat(globalAttendancePercentage.toFixed(2))
             },
             byClass: Object.values(performanceByClass),
             recentAssignments: assignmentDetails.sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate)).slice(0, 10)
@@ -147,6 +173,7 @@ exports.getClassPerformance = async (req, res) => {
         }
 
         const assignments = await Assignment.find({ classroomId: classId }); // Include unpublished? Maybe not.
+        const totalSessions = await CallSession.countDocuments({ classroomId: classId });
 
         const studentStats = [];
         const assignmentStats = [];
@@ -170,7 +197,8 @@ exports.getClassPerformance = async (req, res) => {
         });
 
         // Calculate Student Stats
-        classroom.students.forEach(student => {
+        // Use for...of to allow await inside
+        for (const student of classroom.students) {
             let totalScore = 0;
             let maxPossible = 0;
             let submittedCount = 0;
@@ -188,15 +216,21 @@ exports.getClassPerformance = async (req, res) => {
 
             const percentage = maxPossible > 0 ? (totalScore / maxPossible) * 100 : 0;
 
+            const attendedCount = await Attendance.countDocuments({ classroomId: classId, studentId: student._id });
+            const attendPct = totalSessions > 0 ? (attendedCount / totalSessions) * 100 : 0;
+
             studentStats.push({
                 id: student._id,
                 name: student.name,
                 email: student.email,
                 assignmentsSubmitted: submittedCount,
                 totalAssignments: assignments.length,
-                averagePercentage: parseFloat(percentage.toFixed(2))
+                averagePercentage: parseFloat(percentage.toFixed(2)),
+                attendancePercentage: parseFloat(attendPct.toFixed(2)),
+                classesAttended: attendedCount,
+                totalClasses: totalSessions
             });
-        });
+        }
 
         res.json({
             classroom: {
@@ -270,11 +304,25 @@ exports.getSchoolPerformance = async (req, res) => {
 
             const clsAvg = clsMax > 0 ? (clsScore / clsMax) * 100 : 0;
 
+            // Calculate class-wide attendance avg
+            const totalClassSessions = await CallSession.countDocuments({ classroomId: classroom._id });
+            let totalStudentAttendancePctSum = 0;
+
+            // This loop could be heavy for large schools, optimize later if needed
+            if (totalClassSessions > 0 && classroom.students.length > 0) {
+                for (const st of classroom.students) {
+                    const att = await Attendance.countDocuments({ classroomId: classroom._id, studentId: st });
+                    totalStudentAttendancePctSum += (att / totalClassSessions);
+                }
+            }
+            const avgAttendance = classroom.students.length > 0 ? (totalStudentAttendancePctSum / classroom.students.length) * 100 : 0;
+
             classPerformance.push({
                 id: classroom._id,
                 name: classroom.name,
                 studentCount: classroom.students.length,
                 averagePercentage: parseFloat(clsAvg.toFixed(2)),
+                attendancePercentage: parseFloat(avgAttendance.toFixed(2)),
                 assignmentCount: assignments.length
             });
         }

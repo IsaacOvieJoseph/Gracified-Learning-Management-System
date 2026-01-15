@@ -148,6 +148,7 @@ const SchoolAdminReport = () => {
                             <Tooltip cursor={{ fill: '#f3f4f6' }} />
                             <Legend />
                             <Bar dataKey="averagePercentage" name="Average Score" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={40} />
+                            <Bar dataKey="attendancePercentage" name="Avg Attendance" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
@@ -165,6 +166,7 @@ const SchoolAdminReport = () => {
                                 <th className="px-6 py-4">Class Name</th>
                                 <th className="px-6 py-4 text-center">Students</th>
                                 <th className="px-6 py-4 text-center">Assignments</th>
+                                <th className="px-6 py-4 text-right">Avg Attendance</th>
                                 <th className="px-6 py-4 text-right">Avg Performance</th>
                             </tr>
                         </thead>
@@ -174,13 +176,14 @@ const SchoolAdminReport = () => {
                                     <td className="px-6 py-4 font-medium text-gray-900">{cls.name}</td>
                                     <td className="px-6 py-4 text-center text-gray-600">{cls.studentCount}</td>
                                     <td className="px-6 py-4 text-center text-gray-600">{cls.assignmentCount}</td>
+                                    <td className="px-6 py-4 text-right font-medium text-gray-700">{cls.attendancePercentage}%</td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end space-x-2">
                                             <span className="font-bold">{cls.averagePercentage}%</span>
                                             <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
                                                 <div
                                                     className={`h-full rounded-full ${cls.averagePercentage >= 75 ? 'bg-green-500' :
-                                                            cls.averagePercentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                                                        cls.averagePercentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'
                                                         }`}
                                                     style={{ width: `${cls.averagePercentage}%` }}
                                                 />

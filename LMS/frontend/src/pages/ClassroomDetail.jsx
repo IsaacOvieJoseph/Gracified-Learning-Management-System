@@ -578,6 +578,15 @@ const ClassroomDetail = () => {
       const resp = await api.get(`/classrooms/${id}/call`);
       const link = resp.data.link;
       if (link) {
+        // Mark attendance silently
+        try {
+          if (user?.role === 'student') {
+            await api.post(`/classrooms/${id}/call/attend`, {}, { skipLoader: true });
+          }
+        } catch (attendErr) {
+          console.error('Failed to mark attendance:', attendErr);
+        }
+
         const w = window.open(link, '_blank');
         if (w) w.opener = null;
       } else {

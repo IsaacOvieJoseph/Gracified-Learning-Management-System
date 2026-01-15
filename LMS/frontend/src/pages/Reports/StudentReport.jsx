@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { BookOpen, CheckCircle, Clock, Award } from 'lucide-react';
+import { BookOpen, CheckCircle, Clock, Award, Users } from 'lucide-react';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
@@ -43,7 +43,7 @@ const StudentReport = () => {
     return (
         <div className="space-y-8">
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-center space-x-4">
                     <div className="p-3 bg-blue-100 rounded-lg text-blue-600">
                         <BookOpen size={24} />
@@ -83,6 +83,16 @@ const StudentReport = () => {
                         <p className="text-2xl font-bold text-gray-800">{summary.overallPercentage}%</p>
                     </div>
                 </div>
+
+                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex items-center space-x-4">
+                    <div className="p-3 bg-indigo-100 rounded-lg text-indigo-600">
+                        <Users size={24} />
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-500">Attendance</p>
+                        <p className="text-2xl font-bold text-gray-800">{summary.attendancePercentage}%</p>
+                    </div>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -91,13 +101,18 @@ const StudentReport = () => {
                     <h3 className="text-lg font-bold mb-6 text-gray-800">Performance by Subject</h3>
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={byClass}>
+                            <BarChart data={byClass.map(c => ({
+                                className: c.className,
+                                averagePercentage: c.averagePercentage,
+                                attendancePercentage: c.attendance?.percentage || 0
+                            }))}>
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="className" />
                                 <YAxis unit="%" />
                                 <Tooltip />
                                 <Legend />
                                 <Bar dataKey="averagePercentage" name="Avg Score (%)" fill="#8884d8" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="attendancePercentage" name="Attendance (%)" fill="#82ca9d" radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
@@ -157,9 +172,9 @@ const StudentReport = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className={`px-3 py-1 rounded-full text-xs font-medium border ${assign.status === 'graded' ? 'bg-green-100 text-green-700 border-green-200' :
-                                                assign.status === 'submitted' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                                                    assign.status === 'missing' ? 'bg-red-100 text-red-700 border-red-200' :
-                                                        'bg-gray-100 text-gray-600 border-gray-200'
+                                            assign.status === 'submitted' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                                                assign.status === 'missing' ? 'bg-red-100 text-red-700 border-red-200' :
+                                                    'bg-gray-100 text-gray-600 border-gray-200'
                                             }`}>
                                             {assign.status === 'graded' ? 'Graded' :
                                                 assign.status === 'submitted' ? 'Submitted' :

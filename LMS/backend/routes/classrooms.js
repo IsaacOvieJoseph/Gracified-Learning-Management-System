@@ -4,6 +4,7 @@ const User = require('../models/User');
 const School = require('../models/School');
 const Notification = require('../models/Notification'); // New import
 const CallSession = require('../models/CallSession');
+const Attendance = require('../models/Attendance');
 const { auth, authorize } = require('../middleware/auth');
 const subscriptionCheck = require('../middleware/subscriptionCheck'); // Import subscriptionCheck middleware
 const { filterClassroomsBySubscription, isClassroomOwnerSubscriptionValid } = require('../utils/subscriptionHelper');
@@ -102,7 +103,7 @@ router.get('/active-meetings', auth, async (req, res) => {
     } else if (req.user.role === 'teacher' || req.user.role === 'personal_teacher') {
       classroomQuery = { teacherId: req.user._id };
     }
-     else if (req.user.role === 'school_admin') {
+    else if (req.user.role === 'school_admin') {
       const adminSchools = await School.find({ adminId: req.user._id }).select('_id');
       classroomQuery = { schoolId: { $in: adminSchools.map(s => s._id) } };
     }
@@ -1200,6 +1201,56 @@ router.get('/:id/call', auth, subscriptionCheck, async (req, res) => {
     }
   } catch (error) {
     console.error('Error fetching class call:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Mark attendance for a student joining a call
+router.post('/:id/call/attend', auth, subscriptionCheck, async (req, res) => {
+  try {
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ message: 'Only students can mark attendance' });
+    }
+
+    const classroom = await Classroom.findById(req.params.id);
+    if (!classroom) return res.status(404).json({ message: 'Classroom not found' });
+
+    // Check enrollment
+    const isEnrolled = (classroom.students || []).some(s => s.toString() === req.user._id.toString()) ||
+      (req.user.enrolledClasses || []).some(cid => cid.toString() === classroom._id.toString());
+
+    if (!isEnrolled) {
+      return res.status(403).json({ message: 'You are not enrolled in this class' });
+    }
+
+    // Find active call session
+    const latest = await CallSession.findOne({ classroomId: classroom._id }).sort({ startedAt: -1 });
+    if (!latest) {
+      return res.status(404).json({ message: 'No active call session found' });
+    }
+
+    // Check if session is still valid (e.g. within 55 mins)
+    const now = new Date();
+    const fiftyFiveMin = 55 * 60 * 1000;
+    if ((now - new Date(latest.startedAt)) > fiftyFiveMin) {
+      return res.status(400).json({ message: 'Call session has expired' });
+    }
+
+    // Create Call Attendance record
+    await Attendance.findOneAndUpdate(
+      {
+        classroomId: classroom._id,
+        studentId: req.user._id,
+        callSessionId: latest._id
+      },
+      { attendedAt: now },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    res.json({ message: 'Attendance marked successfully' });
+
+  } catch (error) {
+    console.error('Error marking attendance:', error);
     res.status(500).json({ message: error.message });
   }
 });
