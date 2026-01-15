@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 import Select from 'react-select';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { Users, FileText, TrendingUp, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import StudentReportTable from '../../components/Reports/StudentReportTable';
 import AllStudentsReportTable from '../../components/Reports/AllStudentsReportTable';
+import api from '../../utils/api';
 
 const TeacherReport = () => {
     const [classrooms, setClassrooms] = useState([]);
@@ -17,10 +17,7 @@ const TeacherReport = () => {
     useEffect(() => {
         const fetchClassrooms = async () => {
             try {
-                const token = localStorage.getItem('token');
-                const res = await axios.get('http://localhost:5000/api/classrooms', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const res = await api.get('/classrooms');
                 // Filter if necessary, but backend usually handles "my classrooms"
                 const options = res.data.classrooms.map(c => ({ value: c._id, label: c.name }));
                 setClassrooms(options);
@@ -43,10 +40,7 @@ const TeacherReport = () => {
         const fetchReport = async () => {
             setLoading(true);
             try {
-                const token = localStorage.getItem('token');
-                const res = await axios.get(`http://localhost:5000/api/reports/class/${selectedClass.value}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const res = await api.get(`/reports/class/${selectedClass.value}`);
                 setReportData(res.data);
             } catch (error) {
                 console.error(error);

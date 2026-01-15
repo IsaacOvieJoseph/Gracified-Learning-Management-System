@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { BookOpen, CheckCircle, Clock, Award, Users } from 'lucide-react';
-
 import StudentAcademicReportSheet from '../../components/Reports/StudentAcademicReportSheet';
+import api from '../../utils/api';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
@@ -15,10 +14,7 @@ const StudentReport = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const token = localStorage.getItem('token');
-                const res = await axios.get('http://localhost:5000/api/reports/student/me', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const res = await api.get('/reports/student/me');
                 setData(res.data);
             } catch (err) {
                 console.error(err);

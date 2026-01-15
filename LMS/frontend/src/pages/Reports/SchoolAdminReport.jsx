@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { School, Users, BookOpen, TrendingUp, Eye } from 'lucide-react';
@@ -7,6 +6,7 @@ import { toast } from 'react-hot-toast';
 import Select from 'react-select';
 import StudentReportTable from '../../components/Reports/StudentReportTable';
 import AllStudentsReportTable from '../../components/Reports/AllStudentsReportTable';
+import api from '../../utils/api';
 
 const SchoolAdminReport = () => {
     const { user } = useAuth();
@@ -26,10 +26,7 @@ const SchoolAdminReport = () => {
         const fetchClassDetails = async () => {
             setLoadingDetails(true);
             try {
-                const token = localStorage.getItem('token');
-                const res = await axios.get(`http://localhost:5000/api/reports/class/${viewingClass.id}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const res = await api.get(`/reports/class/${viewingClass.id}`);
                 setClassDetails(res.data);
             } catch (error) {
                 console.error(error);
@@ -46,11 +43,8 @@ const SchoolAdminReport = () => {
     useEffect(() => {
         const fetchSchools = async () => {
             try {
-                const token = localStorage.getItem('token');
                 // For school admin, /api/schools returns their managed schools
-                const res = await axios.get('http://localhost:5000/api/schools', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const res = await api.get('/schools');
 
                 // The backend for GET /api/schools for school_admin returns { schools: [...] }
                 const schoolList = res.data.schools || [];
@@ -82,10 +76,7 @@ const SchoolAdminReport = () => {
         const fetchSchoolReport = async () => {
             setLoading(true);
             try {
-                const token = localStorage.getItem('token');
-                const res = await axios.get(`http://localhost:5000/api/reports/school/${selectedSchool.value}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const res = await api.get(`/reports/school/${selectedSchool.value}`);
                 setReportData(res.data);
 
             } catch (error) {

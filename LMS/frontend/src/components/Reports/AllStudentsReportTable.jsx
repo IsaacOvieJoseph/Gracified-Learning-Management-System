@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Download, FileText, Search } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import api from '../../utils/api';
 
 const AllStudentsReportTable = () => {
     const [data, setData] = useState({ classrooms: [], students: [] });
@@ -17,10 +17,7 @@ const AllStudentsReportTable = () => {
     const fetchStudents = async () => {
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get('http://localhost:5000/api/reports/all-students', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get('/reports/all-students');
             setData(res.data);
         } catch (error) {
             console.error(error);

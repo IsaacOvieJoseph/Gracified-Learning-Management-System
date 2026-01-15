@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Globe, School, Users, BookOpen } from 'lucide-react';
+import api from '../../utils/api';
 
 const RootAdminReport = () => {
     const [stats, setStats] = useState(null);
@@ -10,10 +10,7 @@ const RootAdminReport = () => {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const token = localStorage.getItem('token');
-                const res = await axios.get('http://localhost:5000/api/reports/admin/overview', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const res = await api.get('/reports/admin/overview');
                 setStats(res.data);
             } catch (err) {
                 console.error(err);
