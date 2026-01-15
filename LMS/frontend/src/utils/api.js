@@ -2,12 +2,7 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Log API URL on load for debugging
-console.log('API Configuration:', {
-  VITE_API_URL: import.meta.env.VITE_API_URL,
-  API_URL: API_URL,
-  Environment: import.meta.env.MODE
-});
+
 
 const api = axios.create({
   baseURL: API_URL,
@@ -37,7 +32,7 @@ api.interceptors.request.use((config) => {
     config._showLoader = true;
   }
 
-  console.log('API Interceptor: Sending request to', config.url, 'with Authorization header:', config.headers.Authorization ? 'present' : 'missing');
+
   return config;
 });
 
@@ -81,10 +76,8 @@ api.interceptors.response.use(
 export const setAuthToken = (token) => {
   if (token) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    console.log('API: Authorization header set with token.');
   } else {
     delete api.defaults.headers.common['Authorization'];
-    console.log('API: Authorization header removed.');
   }
 };
 

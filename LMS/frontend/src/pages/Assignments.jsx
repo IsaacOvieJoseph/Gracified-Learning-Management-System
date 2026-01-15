@@ -362,7 +362,6 @@ const Assignments = () => {
               const isSubmitted = !!submission;
               const isGraded = submission?.status === 'graded';
 
-              console.log(`Assignment: ${assignment.title}, isSubmitted: ${isSubmitted}, submission:`, submission, `user._id: ${user?._id}`);
 
               const canViewSubmissions = canGradeAssignment && (assignment.submissions && assignment.submissions.length > 0);
 
