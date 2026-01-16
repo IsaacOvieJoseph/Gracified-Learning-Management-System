@@ -42,6 +42,7 @@ router.post('/approve/:paymentId', auth, authorize('root_admin'), async (req, re
     try {
         const payment = await Payment.findById(req.params.paymentId)
             .populate('payoutOwnerId')
+            .populate('userId', 'name email')
             .populate('classroomId');
 
         if (!payment) return res.status(404).json({ message: 'Payment not found' });
@@ -117,17 +118,55 @@ router.post('/approve/:paymentId', auth, authorize('root_admin'), async (req, re
                     </div>
                 </div>
 
+                <div style="margin-top: 15px; font-size: 14px; color: #4b5563;">
+                    <p style="margin: 4px 0;"><strong>Payer (Student):</strong> ${payment.userId?.name || 'N/A'}</p>
+                    <p style="margin: 4px 0;"><strong>Payout Reference:</strong> ${payment.payoutReference}</p>
+                </div>
+
                 <div style="margin-top: 25px; padding: 12px; background: #ecfdf5; border-radius: 8px; border: 1px solid #10b981; color: #065f46; text-align: center;">
                     <strong>Status:</strong> Paid
                 </div>
 
-                <p style="margin-top: 25px; font-size: 14px; color: #6b7280;">The funds should reflect in your registered bank account shortly. Thank you for your hard work!</p>
+                <p style="margin-top: 25px; font-size: 14px; color: #6b7280;">The funds should reflect in your registered bank account shortly. Thank you for trusting us.</p>
+            </div>
+            `
+                    });
+                }
+
+                // Notify Root Admins
+                const rootAdmins = await User.find({ role: 'root_admin' });
+                const rootEmails = rootAdmins.map(admin => admin.email).filter(Boolean);
+
+                if (rootEmails.length > 0) {
+                    const classroomName = payment.classroomId?.name || 'class enrollment';
+                    const amount = (payment.amount || 0).toLocaleString();
+                    const payoutAmount = (payment.payoutAmount || 0).toLocaleString();
+                    const ownerName = payment.payoutOwnerId?.name || 'Unknown';
+                    const studentName = payment.userId?.name || 'N/A';
+
+                    await sendEmail({
+                        to: rootEmails,
+                        subject: `Disbursement Processed: ${classroomName}`,
+                        html: `
+            <div style="font-family: sans-serif; color: #333;">
+                <h2 style="color: #4f46e5;">Disbursement Report (Admin)</h2>
+                <p>A disbursement has been processed successfully.</p>
+                
+                <div style="background: #f3f4f6; padding: 20px; border-radius: 12px; margin-top: 20px;">
+                    <p style="margin: 4px 0;"><strong>Class:</strong> ${classroomName}</p>
+                    <p style="margin: 4px 0;"><strong>Recipient (Owner):</strong> ${ownerName}</p>
+                    <p style="margin: 4px 0;"><strong>Payer (Student):</strong> ${studentName}</p>
+                    <p style="margin: 4px 0;"><strong>Total Payment:</strong> ₦${amount}</p>
+                    <p style="margin: 4px 0;"><strong>Disbursed Amount:</strong> ₦${payoutAmount}</p>
+                    <p style="margin: 4px 0;"><strong>Reference:</strong> ${payment.payoutReference}</p>
+                    <p style="margin: 4px 0;"><strong>Date:</strong> ${new Date().toLocaleString()}</p>
+                </div>
             </div>
             `
                     });
                 }
             } catch (e) {
-                console.error('Error sending payout notification email', e.message);
+                console.error('Error sending payout notification email(s)', e.message);
             }
         }
 

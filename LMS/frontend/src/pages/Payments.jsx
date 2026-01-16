@@ -313,10 +313,22 @@ const Payments = () => {
                         </td>
                       )}
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
-                          {getStatusIcon(payment.status)}
-                          <span className="ml-1">{payment.status}</span>
-                        </span>
+                        {(() => {
+                          let displayStatus = payment.status;
+                          if (payment.type === 'class_enrollment' && payment.payoutStatus) {
+                            displayStatus = payment.payoutStatus === 'paid' ? 'completed' : 'pending';
+                          }
+                          return (
+                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${displayStatus === 'completed' ? 'bg-green-100 text-green-800' :
+                                displayStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                  displayStatus === 'failed' ? 'bg-red-100 text-red-800' :
+                                    'bg-gray-100 text-gray-800'
+                              }`}>
+                              {getStatusIcon(displayStatus)}
+                              <span className="ml-1 capitalize">{displayStatus}</span>
+                            </span>
+                          );
+                        })()}
                       </td>
                     </tr>
                   ))
