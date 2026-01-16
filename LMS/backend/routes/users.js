@@ -105,32 +105,32 @@ router.post('/', auth, authorize('root_admin', 'school_admin'), async (req, res)
       }
     }
 
-    let finalSchoolId;
-    if (req.user.role === 'school_admin') {
-      if (schoolId) {
-        const School = require('../models/School');
-        const providedSchoolIds = Array.isArray(schoolId)
-          ? schoolId.map(id => id.toString())
-          : [schoolId.toString()];
+    let finalSchoolId = schoolId;
+    // Normalize schoolId to array if it's stringified JSON
+    if (typeof schoolId === 'string' && schoolId.startsWith('[')) {
+      try {
+        finalSchoolId = JSON.parse(schoolId);
+      } catch (e) {
+        finalSchoolId = [schoolId];
+      }
+    } else if (schoolId && !Array.isArray(schoolId)) {
+      finalSchoolId = [schoolId];
+    }
 
+    if (req.user.role === 'school_admin') {
+      if (finalSchoolId && finalSchoolId.length > 0) {
+        const School = require('../models/School');
         const schools = await School.find({
-          _id: { $in: providedSchoolIds },
+          _id: { $in: finalSchoolId },
           adminId: req.user._id
         });
 
-        const foundSchoolIds = schools.map(s => s._id.toString());
-        const allValid = providedSchoolIds.every(id => foundSchoolIds.includes(id));
-
-        if (allValid && schools.length === providedSchoolIds.length) {
-          finalSchoolId = schoolId;
-        } else {
+        if (schools.length !== finalSchoolId.length) {
           return res.status(403).json({ message: 'You can only assign users to your assigned schools' });
         }
       } else {
         return res.status(400).json({ message: 'School ID is required. Please select a school from the dropdown.' });
       }
-    } else {
-      finalSchoolId = schoolId;
     }
 
     const user = new User({
@@ -169,29 +169,33 @@ router.post('/bulk-invite', auth, authorize('root_admin', 'school_admin'), uploa
     const errors = [];
 
     // Validate school access for school admin
-    let finalSchoolId = null;
+    let finalSchoolId = schoolId;
+    // Normalize schoolId to array if it's stringified JSON
+    if (typeof schoolId === 'string' && schoolId.startsWith('[')) {
+      try {
+        finalSchoolId = JSON.parse(schoolId);
+      } catch (e) {
+        finalSchoolId = [schoolId];
+      }
+    } else if (schoolId && !Array.isArray(schoolId)) {
+      finalSchoolId = [schoolId];
+    }
+
     if (req.user.role === 'school_admin') {
       // School ID is only required if CSV doesn't have schoolIds column
       // We'll validate per-user schools later when processing CSV
-      if (schoolId) {
+      if (finalSchoolId && finalSchoolId.length > 0) {
         const School = require('../models/School');
-        const providedSchoolIds = Array.isArray(schoolId)
-          ? schoolId
-          : [schoolId];
-
         const schools = await School.find({
-          _id: { $in: providedSchoolIds },
+          _id: { $in: finalSchoolId },
           adminId: req.user._id
         });
 
-        if (schools.length !== providedSchoolIds.length) {
+        if (schools.length !== finalSchoolId.length) {
           fs.unlinkSync(req.file.path);
           return res.status(403).json({ message: 'You can only assign users to your assigned schools' });
         }
-        finalSchoolId = schoolId;
       }
-    } else {
-      finalSchoolId = schoolId;
     }
 
     // Parse CSV
