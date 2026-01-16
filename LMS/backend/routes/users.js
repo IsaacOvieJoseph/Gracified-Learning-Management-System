@@ -69,7 +69,7 @@ router.get('/', auth, authorize('root_admin', 'school_admin', 'personal_teacher'
       query.role = 'student';
     }
 
-    const users = await User.find(query).select('-password');
+    const users = await User.find(query).select('-password').populate('schoolId', 'name');
     res.json({ users });
   } catch (error) {
     res.status(500).json({ message: error.message });
