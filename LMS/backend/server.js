@@ -33,7 +33,10 @@ require('./models/SubscriptionPlan');
 require('./models/UserSubscription');
 
 // Security Middlewares
-app.use(helmet()); // Sets various security-related HTTP headers
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false, // Disable CSP for now as it can be very restrictive with third-party scripts/fonts
+})); // Sets various security-related HTTP headers
 app.use(mongoSanitize()); // Prevent NoSQL injection attacks
 
 // Rate limiting
@@ -46,8 +49,23 @@ const authLimiter = rateLimit({
 });
 
 // Middleware
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://gracified-lms.vercel.app',
+  'https://gracified-lms.onrender.com'
+].filter(Boolean).flatMap(url => [url, url.endsWith('/') ? url.slice(0, -1) : url + '/']);
+
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked for origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200
 };
@@ -122,8 +140,15 @@ const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    methods: ["GET", "POST"]
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
