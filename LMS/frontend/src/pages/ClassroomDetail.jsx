@@ -42,8 +42,8 @@ const ClassroomDetail = () => {
         const localEnd = convertUTCToLocal(s.dayOfWeek, s.endTime);
         return {
           dayOfWeek: local.dayOfWeek,
-          startTime: local.time,
-          endTime: localEnd.time
+          startTime: local.hhmm,
+          endTime: localEnd.hhmm
         };
       }),
       teacherId: classroom.teacherId?._id || '',

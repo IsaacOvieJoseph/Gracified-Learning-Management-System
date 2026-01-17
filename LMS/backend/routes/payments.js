@@ -156,6 +156,7 @@ async function notifyRecipients({ payerUser, payment, classroom }) {
                 <p style="margin: 5px 0;"><strong>Amount:</strong> ₦${(payment.amount || 0).toLocaleString()}</p>
                 <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date().toLocaleDateString()} (GMT)</p>
                 <p style="margin: 5px 0;"><strong>Type:</strong> ${payment.type.replace('_', ' ').toUpperCase()}</p>
+                ${classroom ? `<p style="margin: 5px 0;"><strong>Class:</strong> ${classroom.name}</p>` : ''}
                 <p style="margin: 5px 0;"><strong>Reference:</strong> ${payment.paystackReference || payment.stripePaymentId || 'N/A'}</p>
               </div>
               <p>Thank you for choosing Gracified LMS. You can view your invoice in your dashboard.</p>
